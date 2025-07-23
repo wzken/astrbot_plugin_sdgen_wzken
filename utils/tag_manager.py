@@ -4,6 +4,7 @@ import json
 import os
 import threading
 from typing import Dict, List, Tuple
+from astrbot.api.all import logger
 
 class TagManager:
     def __init__(self, tags_file_path: str):
@@ -17,8 +18,8 @@ class TagManager:
             try:
                 with open(self.path, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except (IOError, json.JSONDecodeError):
-                # logger.error(f"Failed to load tags from {self.path}: {e}")
+            except (IOError, json.JSONDecodeError) as e:
+                logger.error(f"Failed to load tags from {self.path}: {e}")
                 return {}
         return {}
 
@@ -27,8 +28,8 @@ class TagManager:
         try:
             with open(self.path, "w", encoding="utf-8") as f:
                 json.dump(self.tags, f, ensure_ascii=False, indent=2)
-        except IOError:
-            # logger.error(f"Failed to save tags to {self.path}: {e}")
+        except IOError as e:
+            logger.error(f"Failed to save tags to {self.path}: {e}")
             pass
 
     def replace(self, text: str) -> Tuple[str, List[str]]:
@@ -66,10 +67,10 @@ class TagManager:
         """Returns a copy of all tags."""
         return self.tags.copy()
 
-    def import_tags(self, new_tags: Dict[str, str], overwrite: bool = True):
+    def import_tags(self, new_tags: Dict[str, str], overwrite: bool = False):
         """
         Imports a dictionary of tags.
-        If overwrite is True, existing keys will be updated.
+        If overwrite is True, existing keys will be updated. Defaults to False for safety.
         """
         with self.lock:
             if overwrite:

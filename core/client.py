@@ -4,6 +4,7 @@ import asyncio
 import base64
 import aiohttp
 from typing import Dict, List, Any, Optional
+from astrbot.api.all import logger
 
 class SDAPIClient:
     def __init__(self, config: dict):
@@ -33,7 +34,7 @@ class SDAPIClient:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as e:
-            # logger.error(f"API request to {url} failed: {e}")
+            logger.error(f"API request to {url} failed: {e}")
             raise ConnectionError(f"Failed to connect to Stable Diffusion API at {url}.") from e
 
     async def post(self, endpoint: str, payload: Dict) -> Dict:

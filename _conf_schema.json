@@ -105,35 +105,58 @@
     "type": "object",
     "title": "默认Txt2Img参数",
     "properties": {
-      "width": { "type": "int", "default": 512 },
-      "height": { "type": "int", "default": 512 },
-      "steps": { "type": "int", "default": 20 },
-      "sampler": { "type": "string", "default": "Euler a" },
-      "scheduler": { "type": "string", "default": "Karras" },
-      "cfg_scale": { "type": "float", "default": 7.0 },
-      "batch_size": { "type": "int", "default": 1 },
-      "n_iter": { "type": "int", "default": 1 }
+      "width": { "type": "int", "title": "宽度" },
+      "height": { "type": "int", "title": "高度" },
+      "steps": { "type": "int", "title": "步数" },
+      "sampler": { "type": "string", "title": "采样器" },
+      "scheduler": { "type": "string", "title": "调度器" },
+      "cfg_scale": { "type": "number", "title": "CFG Scale" },
+      "batch_size": { "type": "int", "title": "批次大小" },
+      "n_iter": { "type": "int", "title": "迭代次数" }
+    },
+    "default": {
+      "width": 512,
+      "height": 512,
+      "steps": 20,
+      "sampler": "Euler a",
+      "scheduler": "Karras",
+      "cfg_scale": 7.0,
+      "batch_size": 1,
+      "n_iter": 1
     }
   },
   "img2img_params": {
     "type": "object",
     "title": "默认Img2Img参数",
     "properties": {
-      "denoising_strength": { "type": "float", "default": 0.75 },
-      "steps": { "type": "int", "default": 20 },
-      "sampler": { "type": "string", "default": "Euler a" },
-      "scheduler": { "type": "string", "default": "Karras" },
-      "cfg_scale": { "type": "float", "default": 7.0 },
-      "batch_size": { "type": "int", "default": 1 },
-      "n_iter": { "type": "int", "default": 1 }
+      "denoising_strength": { "type": "number", "title": "重绘幅度" },
+      "steps": { "type": "int", "title": "步数" },
+      "sampler": { "type": "string", "title": "采样器" },
+      "scheduler": { "type": "string", "title": "调度器" },
+      "cfg_scale": { "type": "number", "title": "CFG Scale" },
+      "batch_size": { "type": "int", "title": "批次大小" },
+      "n_iter": { "type": "int", "title": "迭代次数" }
+    },
+    "default": {
+      "denoising_strength": 0.75,
+      "steps": 20,
+      "sampler": "Euler a",
+      "scheduler": "Karras",
+      "cfg_scale": 7.0,
+      "batch_size": 1,
+      "n_iter": 1
     }
   },
   "upscale_params": {
     "type": "object",
     "title": "默认放大参数",
     "properties": {
-      "upscaler": { "type": "string", "default": "Latent" },
-      "upscale_factor": { "type": "float", "default": 2.0 }
+      "upscaler": { "type": "string", "title": "放大器" },
+      "upscale_factor": { "type": "number", "title": "放大倍数" }
+    },
+    "default": {
+      "upscaler": "Latent",
+      "upscale_factor": 2.0
     }
   }
 }

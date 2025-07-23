@@ -6,6 +6,10 @@ import base64
 from .client import SDAPIClient
 
 class GenerationManager:
+    # Default prompts can be defined as class constants for clarity
+    DEFAULT_POSITIVE_PROMPT_WHITELIST = "masterpiece, best quality"
+    DEFAULT_NEGATIVE_PROMPT_GLOBAL = "(worst quality, low quality:1.4)"
+
     def __init__(self, config: dict, client: SDAPIClient):
         self.config = config
         self.client = client
@@ -14,22 +18,20 @@ class GenerationManager:
         """Builds a base payload, applying group-specific prompt rules."""
         payload = params.copy()
         
-        # Determine which prompt set to use based on whitelist status
         whitelist_groups = self.config.get("whitelist_groups", [])
         if group_id in whitelist_groups:
-            # Whitelisted group: use exclusive prompts
-            positive_prompt = self.config.get("positive_prompt_whitelist", "masterpiece, best quality")
-            negative_prompt_base = self.config.get("negative_prompt_whitelist", "")
+            positive_prefix = self.config.get("positive_prompt_whitelist", self.DEFAULT_POSITIVE_PROMPT_WHITELIST)
+            negative_prefix = self.config.get("negative_prompt_whitelist", "")
         else:
-            # Normal group: use global prompts
-            positive_prompt = self.config.get("positive_prompt_global", "")
-            negative_prompt_base = self.config.get("negative_prompt_global", "(worst quality, low quality:1.4)")
+            positive_prefix = self.config.get("positive_prompt_global", "")
+            negative_prefix = self.config.get("negative_prompt_global", self.DEFAULT_NEGATIVE_PROMPT_GLOBAL)
 
-        final_positive = f"{positive_prompt}, {prompt}".strip(", ")
-        final_negative = f"{negative_prompt_base}, {negative_prompt}".strip(", ")
+        # A more robust way to combine prompts
+        final_positive_parts = [p for p in [positive_prefix, prompt] if p]
+        final_negative_parts = [p for p in [negative_prefix, negative_prompt] if p]
 
-        payload["prompt"] = final_positive
-        payload["negative_prompt"] = final_negative
+        payload["prompt"] = ", ".join(final_positive_parts)
+        payload["negative_prompt"] = ", ".join(final_negative_parts)
         
         return payload
 

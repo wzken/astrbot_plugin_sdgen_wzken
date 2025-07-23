@@ -2,9 +2,15 @@
 
 from typing import Optional
 
-from astrbot.api.all import Context
+from astrbot.api.all import Context, logger
 
 class LLMHelper:
+    INSPIRE_PROMPT_TEMPLATE = (
+        "{prefix}\n{guidelines}\n"
+        "Based on the image provided and the following instruction: '{user_instruction}', "
+        "generate a detailed and creative prompt for Stable Diffusion."
+    )
+
     def __init__(self, context: Context):
         self.context = context
 
@@ -22,7 +28,8 @@ class LLMHelper:
             response = await provider.text_chat(full_prompt, session_id=None)
             if response and response.completion_text:
                 return response.completion_text.strip()
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error during text_chat with LLM provider: {e}")
             return base_prompt
         
         return base_prompt
@@ -41,9 +48,11 @@ class LLMHelper:
         if not provider or not hasattr(provider, 'image_chat'):
             return None
 
-        full_prompt = f"{prefix}\n{guidelines}\n"
-        full_prompt += f"Based on the image provided and the following instruction: '{user_instruction}', "
-        full_prompt += "generate a detailed and creative prompt for Stable Diffusion."
+        full_prompt = self.INSPIRE_PROMPT_TEMPLATE.format(
+            prefix=prefix,
+            guidelines=guidelines,
+            user_instruction=user_instruction
+        )
 
         try:
             response = await provider.image_chat(
@@ -53,7 +62,8 @@ class LLMHelper:
             )
             if response and response.completion_text:
                 return response.completion_text.strip()
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error during image_chat with LLM provider: {e}")
             return None
         
         return None
