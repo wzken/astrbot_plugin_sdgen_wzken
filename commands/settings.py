@@ -1,8 +1,9 @@
 # astrbot_plugin_sdgen_v2/commands/settings.py
 
 import json
+from astrbot.api.star import Context
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.all import command_group, logger, Context
+from astrbot.api.all import command_group, logger
 
 from ..core.client import SDAPIClient
 from ..utils.tag_manager import TagManager

@@ -1,5 +1,6 @@
 # astrbot_plugin_sdgen_v2/commands/i2i.py
 
+from astrbot.api.star import Context
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.all import logger, Image as MessageImage, Plain as MessageText
 
