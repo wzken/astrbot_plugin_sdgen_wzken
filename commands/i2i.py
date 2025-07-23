@@ -1,7 +1,8 @@
 # astrbot_plugin_sdgen_v2/commands/i2i.py
 
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.all import MessageImage, MessageText, logger
+from astrbot.api.message import MessageImage, MessageText
+from astrbot.api.all import logger
 
 from ..core.generation import GenerationManager
 from ..utils.tag_manager import TagManager
