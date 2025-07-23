@@ -21,7 +21,7 @@ class SettingsCommands:
 
     @sd_group.command("tag")
     async def handle_tag(self, event: AstrMessageEvent):
-        """Manages local tags. Usage: /sd tag key:value, /sd tag del key, /sd tag list, /sd tag import {...}"""
+        """Manages local tags. Usage: /sd tag add <name> <prompt>, /sd tag del <name>, /sd tag list, /sd tag import {...}"""
         text = event.get_plain_text().strip()
         
         if text == "list":
@@ -40,6 +40,16 @@ class SettingsCommands:
                 yield event.plain_result(messages.MSG_TAG_DELETED.format(key=key_to_del))
             else:
                 yield event.plain_result(f"❌ 未找到名为 '{key_to_del}' 的标签。")
+            return
+
+        if text.startswith("add "):
+            parts = text[4:].strip().split(maxsplit=1)
+            if len(parts) == 2:
+                key, value = parts
+                self.tag_manager.set_tag(key, value)
+                yield event.plain_result(messages.MSG_TAG_SET.format(key=key))
+            else:
+                yield event.plain_result("❌ 格式错误，请输入 `/sd tag add <名字> <提示词>`。")
             return
 
         if text.startswith("import "):
@@ -65,7 +75,7 @@ class SettingsCommands:
                 yield event.plain_result("❌ 格式错误，请输入 `/sd tag 关键词:替换内容`。")
             return
             
-        yield event.plain_result("使用方法：\n- `/sd tag list`\n- `/sd tag 关键词:内容`\n- `/sd tag del 关键词`\n- `/sd tag import {...}`")
+        yield event.plain_result("使用方法：\n- `/sd tag list`\n- `/sd tag add <名字> <提示词>`\n- `/sd tag 关键词:内容`\n- `/sd tag del 关键词`\n- `/sd tag import {...}`")
 
     @sd_group.command("check")
     async def handle_check(self, event: AstrMessageEvent):

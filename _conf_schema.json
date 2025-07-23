@@ -54,7 +54,7 @@
     "default": "(worst quality, low quality:1.4), deformed, bad anatomy"
   },
   "whitelist_groups": {
-    "type": "array",
+    "type": "list",
     "title": "白名单群组ID",
     "description": "白名单群组列表，这些群组将使用专属的提示词模板。",
     "items": {
@@ -63,7 +63,7 @@
     "default": []
   },
   "blacklist_groups": {
-    "type": "array",
+    "type": "list",
     "title": "黑名单群组ID",
     "description": "黑名单群组列表，插件将完全忽略这些群组的消息。",
     "items": {
@@ -110,7 +110,7 @@
       "steps": { "type": "int", "default": 20 },
       "sampler": { "type": "string", "default": "Euler a" },
       "scheduler": { "type": "string", "default": "Karras" },
-      "cfg_scale": { "type": "number", "default": 7.0 },
+      "cfg_scale": { "type": "float", "default": 7.0 },
       "batch_size": { "type": "int", "default": 1 },
       "n_iter": { "type": "int", "default": 1 }
     }
@@ -119,11 +119,11 @@
     "type": "object",
     "title": "默认Img2Img参数",
     "properties": {
-      "denoising_strength": { "type": "number", "default": 0.75 },
+      "denoising_strength": { "type": "float", "default": 0.75 },
       "steps": { "type": "int", "default": 20 },
       "sampler": { "type": "string", "default": "Euler a" },
       "scheduler": { "type": "string", "default": "Karras" },
-      "cfg_scale": { "type": "number", "default": 7.0 },
+      "cfg_scale": { "type": "float", "default": 7.0 },
       "batch_size": { "type": "int", "default": 1 },
       "n_iter": { "type": "int", "default": 1 }
     }
@@ -133,7 +133,7 @@
     "title": "默认放大参数",
     "properties": {
       "upscaler": { "type": "string", "default": "Latent" },
-      "upscale_factor": { "type": "number", "default": 2.0 }
+      "upscale_factor": { "type": "float", "default": 2.0 }
     }
   }
 }
