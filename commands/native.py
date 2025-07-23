@@ -1,7 +1,7 @@
 # astrbot_plugin_sdgen_v2/commands/native.py
 
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.message import MessageImage, MessageText
+from astrbot.api.models import MessageImage, MessageText
 from astrbot.api.all import logger
 
 from ..core.generation import GenerationManager
