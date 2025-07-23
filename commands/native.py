@@ -1,8 +1,7 @@
 # astrbot_plugin_sdgen_v2/commands/native.py
 
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.models import MessageImage, MessageText
-from astrbot.api.all import logger
+from astrbot.api.all import logger, Image as MessageImage, Plain as MessageText
 
 from ..core.generation import GenerationManager
 from ..utils.tag_manager import TagManager
@@ -45,7 +44,7 @@ class NativeCommands:
             # 4. Process and send results
             processed_images = await self.generator.process_and_upscale_images(generated_images)
             
-            image_components = [MessageImage.fromBase64(img) for img in processed_images]
+            image_components = [MessageImage.from_base64(img) for img in processed_images]
             
             if self.generator.config.enable_show_positive_prompt:
                 yield event.plain_result(f"{messages.MSG_PROMPT_DISPLAY}: {final_prompt}")
