@@ -6,13 +6,13 @@
     "default": "http://127.0.0.1:7860"
   },
   "session_timeout": {
-    "type": "integer",
+    "type": "int",
     "title": "会话超时",
     "description": "等待用户输入的会话超时时间（秒）。",
     "default": 120
   },
   "max_concurrent_tasks": {
-    "type": "integer",
+    "type": "int",
     "title": "最大并发任务数",
     "description": "插件可以同时处理的最大绘图任务数量。",
     "default": 10
@@ -105,14 +105,14 @@
     "type": "object",
     "title": "默认Txt2Img参数",
     "properties": {
-      "width": { "type": "integer", "default": 512 },
-      "height": { "type": "integer", "default": 512 },
-      "steps": { "type": "integer", "default": 20 },
+      "width": { "type": "int", "default": 512 },
+      "height": { "type": "int", "default": 512 },
+      "steps": { "type": "int", "default": 20 },
       "sampler": { "type": "string", "default": "Euler a" },
       "scheduler": { "type": "string", "default": "Karras" },
       "cfg_scale": { "type": "number", "default": 7.0 },
-      "batch_size": { "type": "integer", "default": 1 },
-      "n_iter": { "type": "integer", "default": 1 }
+      "batch_size": { "type": "int", "default": 1 },
+      "n_iter": { "type": "int", "default": 1 }
     }
   },
   "img2img_params": {
@@ -120,12 +120,12 @@
     "title": "默认Img2Img参数",
     "properties": {
       "denoising_strength": { "type": "number", "default": 0.75 },
-      "steps": { "type": "integer", "default": 20 },
+      "steps": { "type": "int", "default": 20 },
       "sampler": { "type": "string", "default": "Euler a" },
       "scheduler": { "type": "string", "default": "Karras" },
       "cfg_scale": { "type": "number", "default": 7.0 },
-      "batch_size": { "type": "integer", "default": 1 },
-      "n_iter": { "type": "integer", "default": 1 }
+      "batch_size": { "type": "int", "default": 1 },
+      "n_iter": { "type": "int", "default": 1 }
     }
   },
   "upscale_params": {
