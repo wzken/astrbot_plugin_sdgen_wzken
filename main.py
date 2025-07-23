@@ -8,10 +8,9 @@ Description: A smarter and more powerful image generation plugin for AstrBot usi
 """
 
 from astrbot.api.star import register, Star, Context
-from astrbot.api.all import AstrBotConfig, logger
+from astrbot.api.all import logger
 from pathlib import Path
 
-from .core.config import ConfigManager
 from .core.client import SDAPIClient
 from .core.generation import GenerationManager
 from .utils.tag_manager import TagManager
@@ -26,28 +25,24 @@ class SDGeneratorWzken(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         
-        # Get config from context, as per the new framework standard
-        config = context.config
-        
         logger.info("SDGen_wzken plugin loaded. Initializing services...")
-        self._initialize_services(config)
+        self._initialize_services()
         self._register_commands()
         logger.info("SDGen_wzken plugin initialization complete.")
 
-    def _initialize_services(self, raw_config: AstrBotConfig):
+    def _initialize_services(self):
         """Initializes all core services and managers using dependency injection."""
         plugin_dir = Path(__file__).parent.resolve()
         
-        # 1. Config Manager
-        self.config_manager = ConfigManager(raw_config)
+        # The config is now directly accessed via self.context._config
         
-        # 2. API Client
-        self.api_client = SDAPIClient(self.config_manager.config)
+        # 1. API Client
+        self.api_client = SDAPIClient(self.context._config)
         
-        # 3. Generation Manager
-        self.generator = GenerationManager(self.config_manager.config, self.api_client)
+        # 2. Generation Manager
+        self.generator = GenerationManager(self.context._config, self.api_client)
         
-        # 4. Tag Manager
+        # 3. Tag Manager
         tags_file = plugin_dir / "data" / "tags.json"
         tags_file.parent.mkdir(exist_ok=True) # Ensure data directory exists
         self.tag_manager = TagManager(str(tags_file))

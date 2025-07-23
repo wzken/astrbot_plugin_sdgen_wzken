@@ -5,18 +5,17 @@ import base64
 import aiohttp
 from typing import Dict, List, Any, Optional
 
-from .config import PluginConfig
-
 class SDAPIClient:
-    def __init__(self, config: PluginConfig):
+    def __init__(self, config: dict):
         self.config = config
         self._session: Optional[aiohttp.ClientSession] = None
-        self._base_url = str(config.webui_url).rstrip('/')
+        self._base_url = self.config.get("webui_url", "http://127.0.0.1:7860").rstrip('/')
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create an aiohttp session."""
         if self._session is None or self._session.closed:
-            timeout = aiohttp.ClientTimeout(total=self.config.session_timeout)
+            timeout_seconds = self.config.get("session_timeout", 120)
+            timeout = aiohttp.ClientTimeout(total=timeout_seconds)
             self._session = aiohttp.ClientSession(timeout=timeout)
         return self._session
 

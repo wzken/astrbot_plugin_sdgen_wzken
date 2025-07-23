@@ -9,7 +9,8 @@ from ..utils.llm_helper import LLMHelper
 from ..static import messages
 
 class I2ICommands:
-    def __init__(self, generator: GenerationManager, tag_manager: TagManager, llm_helper: LLMHelper):
+    def __init__(self, context: Context, generator: GenerationManager, tag_manager: TagManager, llm_helper: LLMHelper):
+        self.context = context
         self.generator = generator
         self.tag_manager = tag_manager
         self.llm_helper = llm_helper
@@ -20,7 +21,8 @@ class I2ICommands:
         
         # 0. Permission Check
         group_id = event.get_group_id()
-        if group_id in self.generator.config.blacklist_groups:
+        blacklist_groups = self.context._config.get("blacklist_groups", [])
+        if group_id in blacklist_groups:
             return # Silently ignore if in blacklist
 
         # 1. Extract image and text from the event
@@ -49,11 +51,11 @@ class I2ICommands:
         # 2. Process prompt: replace tags and optionally use LLM
         prompt_text, _ = self.tag_manager.replace(prompt_text)
         
-        if self.generator.config.enable_llm_prompt_generation:
+        if self.context._config.get("enable_llm_prompt_generation", True):
             final_prompt = await self.llm_helper.generate_text_prompt(
                 base_prompt=prompt_text,
-                guidelines=self.generator.config.prompt_guidelines,
-                prefix=self.generator.config.llm_prompt_prefix
+                guidelines=self.context._config.get("prompt_guidelines", ""),
+                prefix=self.context._config.get("llm_prompt_prefix", "")
             )
         else:
             final_prompt = prompt_text
@@ -69,13 +71,13 @@ class I2ICommands:
             # 4. Process and send results
             processed_images = await self.generator.process_and_upscale_images(generated_images)
             
-            image_components = [MessageImage.fromBase64(img) for img in processed_images]
+            image_components = [MessageImage.from_base64(img) for img in processed_images]
             
-            if self.generator.config.enable_show_positive_prompt:
+            if self.context._config.get("enable_show_positive_prompt", True):
                 yield event.plain_result(f"{messages.MSG_PROMPT_DISPLAY}: {final_prompt}")
 
             # Check sending preference
-            if self.generator.config.enable_forward_message:
+            if self.context._config.get("enable_forward_message", False):
                 yield event.send_result(image_components)
             else:
                 yield event.chain_result(image_components)
@@ -86,7 +88,7 @@ class I2ICommands:
 
 def register_i2i_commands(star_instance):
     """Registers the i2i command handlers to the main star instance."""
-    i2i_handler = I2ICommands(star_instance.generator, star_instance.tag_manager, star_instance.llm_helper)
+    i2i_handler = I2ICommands(star_instance.context, star_instance.generator, star_instance.tag_manager, star_instance.llm_helper)
     
     # Manually add the method to the star instance so AstrBot can discover it
     star_instance.handle_i2i = i2i_handler.handle_i2i

@@ -9,7 +9,8 @@ from ..utils.llm_helper import LLMHelper
 from ..static import messages
 
 class InspireCommands:
-    def __init__(self, generator: GenerationManager, tag_manager: TagManager, llm_helper: LLMHelper):
+    def __init__(self, context: Context, generator: GenerationManager, tag_manager: TagManager, llm_helper: LLMHelper):
+        self.context = context
         self.generator = generator
         self.tag_manager = tag_manager
         self.llm_helper = llm_helper
@@ -20,7 +21,8 @@ class InspireCommands:
         
         # 0. Permission Check
         group_id = event.get_group_id()
-        if group_id in self.generator.config.blacklist_groups:
+        blacklist_groups = self.context._config.get("blacklist_groups", [])
+        if group_id in blacklist_groups:
             return # Silently ignore if in blacklist
 
         # 1. Extract image and text from the event
@@ -52,8 +54,8 @@ class InspireCommands:
         final_prompt = await self.llm_helper.generate_prompt_from_image(
             image_b64=image_b64,
             user_instruction=prompt_text,
-            guidelines=self.generator.config.prompt_guidelines,
-            prefix=self.generator.config.llm_prompt_prefix
+            guidelines=self.context._config.get("prompt_guidelines", ""),
+            prefix=self.context._config.get("llm_prompt_prefix", "")
         )
 
         # Graceful Degradation
@@ -62,8 +64,8 @@ class InspireCommands:
             # Fallback to text-only generation
             final_prompt = await self.llm_helper.generate_text_prompt(
                 base_prompt=prompt_text,
-                guidelines=self.generator.config.prompt_guidelines,
-                prefix=self.generator.config.llm_prompt_prefix
+                guidelines=self.context._config.get("prompt_guidelines", ""),
+                prefix=self.context._config.get("llm_prompt_prefix", "")
             )
 
         # 3. Generate image using txt2img
@@ -79,11 +81,11 @@ class InspireCommands:
             
             image_components = [MessageImage.from_base64(img) for img in processed_images]
             
-            if self.generator.config.enable_show_positive_prompt:
+            if self.context._config.get("enable_show_positive_prompt", True):
                 yield event.plain_result(f"{messages.MSG_PROMPT_DISPLAY}: {final_prompt}")
 
             # Check sending preference
-            if self.generator.config.enable_forward_message:
+            if self.context._config.get("enable_forward_message", False):
                 yield event.send_result(image_components)
             else:
                 yield event.chain_result(image_components)
@@ -94,5 +96,5 @@ class InspireCommands:
 
 def register_inspire_commands(star_instance):
     """Registers the inspire command handlers to the main star instance."""
-    inspire_handler = InspireCommands(star_instance.generator, star_instance.tag_manager, star_instance.llm_helper)
+    inspire_handler = InspireCommands(star_instance.context, star_instance.generator, star_instance.tag_manager, star_instance.llm_helper)
     star_instance.handle_inspire = inspire_handler.handle_inspire

@@ -2,17 +2,16 @@
 
 import json
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.all import command_group, logger
+from astrbot.api.all import command_group, logger, Context
 
 from ..core.client import SDAPIClient
-from ..core.config import ConfigManager
 from ..utils.tag_manager import TagManager
 from ..static import messages
 
 class SettingsCommands:
-    def __init__(self, client: SDAPIClient, config_manager: ConfigManager, tag_manager: TagManager):
+    def __init__(self, context: Context, client: SDAPIClient, tag_manager: TagManager):
+        self.context = context
         self.client = client
-        self.config_manager = config_manager
         self.tag_manager = tag_manager
 
     @command_group("sd")
@@ -24,7 +23,6 @@ class SettingsCommands:
         """Manages local tags. Usage: /sd tag key:value, /sd tag del key, /sd tag list, /sd tag import {...}"""
         text = event.get_plain_text().strip()
         
-        # List tags
         if text == "list":
             all_tags = self.tag_manager.get_all()
             if not all_tags:
@@ -35,7 +33,6 @@ class SettingsCommands:
             yield event.plain_result(f"已保存的本地标签：\n{tag_list_str}")
             return
 
-        # Delete tag
         if text.startswith("del "):
             key_to_del = text[4:].strip()
             if self.tag_manager.del_tag(key_to_del):
@@ -44,7 +41,6 @@ class SettingsCommands:
                 yield event.plain_result(f"❌ 未找到名为 '{key_to_del}' 的标签。")
             return
 
-        # Import tags
         if text.startswith("import "):
             json_str = text[7:].strip()
             try:
@@ -57,7 +53,6 @@ class SettingsCommands:
                 yield event.plain_result("❌ 导入失败：输入的不是有效的JSON格式。")
             return
 
-        # Set tag
         if ":" in text:
             key, value = text.split(":", 1)
             key = key.strip()
@@ -82,42 +77,38 @@ class SettingsCommands:
     @sd_group.command("conf")
     async def handle_conf(self, event: AstrMessageEvent):
         """Displays the current plugin configuration."""
-        # This can be expanded to be interactive as we planned
         try:
-            conf_str = self.config_manager.config.json(indent=2)
+            # Accessing config directly from the context
+            conf_str = json.dumps(self.context._config, indent=2, ensure_ascii=False)
             yield event.plain_result(f"Current Configuration:\n{conf_str}")
         except Exception as e:
             logger.error(f"Failed to display configuration: {e}")
             yield event.plain_result("Failed to display configuration.")
             
-    # Add more settings commands here, e.g., for verbose, upscale, etc.
     @sd_group.command("verbose")
     async def handle_verbose(self, event: AstrMessageEvent):
         """Toggles verbose mode."""
-        current_status = self.config_manager.get("enable_show_positive_prompt")
+        current_status = self.context._config.get("enable_show_positive_prompt", True)
         new_status = not current_status
-        self.config_manager.set("enable_show_positive_prompt", new_status)
-        # In a real scenario, we'd save the config here.
-        # self.config_manager.save_to_file(...)
+        self.context._config["enable_show_positive_prompt"] = new_status
+        # Note: AstrBot should handle saving the config automatically.
         feedback = "详细模式已开启。" if new_status else "详细模式已关闭。"
         yield event.plain_result(feedback)
 
     @sd_group.command("forward")
     async def handle_forward_toggle(self, event: AstrMessageEvent):
         """Toggles whether to send images as a new message or as a reply."""
-        current_status = self.config_manager.get("enable_forward_message")
+        current_status = self.context._config.get("enable_forward_message", False)
         new_status = not current_status
-        self.config_manager.set("enable_forward_message", new_status)
-        # self.config_manager.save_to_file(...)
+        self.context._config["enable_forward_message"] = new_status
         feedback = "发送模式已切换为：新消息（不回复）。" if new_status else "发送模式已切换为：回复原消息。"
         yield event.plain_result(feedback)
 
 
 def register_settings_commands(star_instance):
     """Registers the settings command handlers to the main star instance."""
-    settings_handler = SettingsCommands(star_instance.api_client, star_instance.config_manager, star_instance.tag_manager)
+    settings_handler = SettingsCommands(star_instance.context, star_instance.api_client, star_instance.tag_manager)
     
-    # Manually add the group and its commands to the star instance
     star_instance.sd_group = settings_handler.sd_group
     star_instance.sd_group.add_command(settings_handler.handle_tag)
     star_instance.sd_group.add_command(settings_handler.handle_check)
