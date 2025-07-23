@@ -23,8 +23,11 @@ from .commands.native import register_native_commands
 
 @register("SDGen_wzken", "wzken", "SDGen_wzken", "2.0.0")
 class SDGeneratorWzken(Star):
-    def __init__(self, context: Context, config: AstrBotConfig):
+    def __init__(self, context: Context):
         super().__init__(context)
+        
+        # Get config from context, as per the new framework standard
+        config = context.config
         
         logger.info("SDGen_wzken plugin loaded. Initializing services...")
         self._initialize_services(config)
