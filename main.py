@@ -27,7 +27,7 @@ from .utils.llm_helper import LLMHelper
 from .utils.sd_utils import SDUtils
 from .static import messages
 
-@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "3.1.0")
+@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "3.1.1")
 class SDGeneratorWzken(Star):
 
     TOGGLES_MAP = [
