@@ -3,7 +3,7 @@
 """
 Plugin Name: SDGen_wzken
 Author: wzken
-Version: 2.4.5
+Version: 2.4.7
 Description: A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.
 """
 
@@ -22,7 +22,7 @@ from .utils.tag_manager import TagManager
 from .utils.llm_helper import LLMHelper
 from .static import messages
 
-@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.4.5")
+@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.4.7")
 class SDGeneratorWzken(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -56,7 +56,9 @@ class SDGeneratorWzken(Star):
         当用户明确表示想要“画”、“绘制”、“创作”或“生成”图片时，应优先使用此工具。
 
         Args:
-            prompt(string): 用户对所需图像的初步描述。例如：“一个女孩”或“蔚蓝档案的小春在沙滩上”。这个描述将作为生成最终专业提示词的基础。
+            prompt(string): 用户对所需图像的核心描述。根据输入类型，按以下方式处理：
+- **当只有文本时**: 将此描述作为生成图像的唯一依据，例如“一个女孩”或“蔚蓝档案的小春在沙灘上”。
+- **当同时有图片和文本时**: 将此文本视为用户的核心创作意图。必须分析图片内容，提取如背景、服装、角色细节、光照等视觉元素，并将这些信息与用户的文本意图结合，形成一个完整、详细的最终提示词。
         """
         if not await self._permission_check(event):
             yield event.plain_result("Sorry, I don't have permission to draw in this chat.")
@@ -65,7 +67,12 @@ class SDGeneratorWzken(Star):
         await event.send(event.plain_result(messages.MSG_GENERATING))
         
         # --- New Flow: 1. Replace tags, 2. Optimize with LLM ---
-        replaced_prompt, _ = self.tag_manager.replace(prompt)
+        replaced_prompt, replacements = self.tag_manager.replace(prompt)
+
+        # --- New: Notify user about replacements if verbose is on ---
+        if replacements and self.config.get("enable_show_positive_prompt", False):
+            replacement_str = "\n".join([f"- `{orig}` -> `{new}`" for orig, new in replacements])
+            await event.send(event.plain_result(f"已应用本地关键词替换：\n{replacement_str}"))
         
         final_prompt = await self.llm_helper.generate_text_prompt(
             base_prompt=replaced_prompt,
@@ -639,7 +646,12 @@ class SDGeneratorWzken(Star):
         await event.send(event.plain_result(messages.MSG_IMG2IMG_GENERATING))
         
         # --- New Flow: 1. Replace tags, 2. Optimize with LLM ---
-        replaced_prompt, _ = self.tag_manager.replace(prompt_text)
+        replaced_prompt, replacements = self.tag_manager.replace(prompt_text)
+
+        # --- New: Notify user about replacements if verbose is on ---
+        if replacements and self.config.get("enable_show_positive_prompt", False):
+            replacement_str = "\n".join([f"- `{orig}` -> `{new}`" for orig, new in replacements])
+            await event.send(event.plain_result(f"已应用本地关键词替换：\n{replacement_str}"))
         
         if self.config.get("enable_llm_prompt_generation", True):
             final_prompt = await self.llm_helper.generate_text_prompt(

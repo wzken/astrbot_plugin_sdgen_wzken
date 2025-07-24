@@ -32,21 +32,25 @@ class TagManager:
             logger.error(f"Failed to save tags to {self.path}: {e}")
             pass
 
-    def replace(self, text: str) -> Tuple[str, List[str]]:
+    def replace(self, text: str) -> Tuple[str, List[Tuple[str, str]]]:
         """
         Replaces keywords in the text with their corresponding tag values.
-        Returns the modified text and a list of keys that were changed.
+        Returns the modified text and a list of (original, new) replacements.
         """
-        changed_keys = []
+        replacements_made = []
         # Sort by key length descending to replace longer matches first (e.g., "blue eyes" before "blue")
         sorted_tags = sorted(self.tags.items(), key=lambda x: len(x[0]), reverse=True)
         
+        # Create a temporary text to check for replacements without modifying the loop's source
+        temp_text = text
         for key, value in sorted_tags:
-            if key in text:
+            if key in temp_text:
+                # Perform the replacement on the original text
                 text = text.replace(key, value)
-                if key not in changed_keys:
-                    changed_keys.append(key)
-        return text, changed_keys
+                # Update temp_text to avoid re-matching on the replaced part
+                temp_text = temp_text.replace(key, "") 
+                replacements_made.append((key, value))
+        return text, replacements_made
 
     def set_tag(self, key: str, value: str):
         """Adds or updates a tag."""
