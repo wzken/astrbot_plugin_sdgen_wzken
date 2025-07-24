@@ -9,6 +9,8 @@ class GenerationManager:
     # Default prompts can be defined as class constants for clarity
     DEFAULT_POSITIVE_PROMPT_WHITELIST = "masterpiece, best quality"
     DEFAULT_NEGATIVE_PROMPT_GLOBAL = "(worst quality, low quality:1.4)"
+    DEFAULT_UPSCALE_FACTOR = 2.0
+    DEFAULT_UPSCALER = "Latent"
 
     def __init__(self, config: dict, client: SDAPIClient):
         self.config = config
@@ -39,6 +41,21 @@ class GenerationManager:
         """Builds the payload for a txt2img request."""
         params = self.config.get("default_params", {})
         payload = self._build_base_payload(params, prompt, negative_prompt, group_id)
+        
+        # Add common parameters
+        payload["seed"] = params.get("seed", -1)
+        payload["restore_faces"] = params.get("restore_faces", False)
+        payload["tiling"] = params.get("tiling", False)
+
+        # Add High-res fix parameters if enabled
+        if params.get("enable_hr", False):
+            payload["enable_hr"] = True
+            payload["hr_scale"] = params.get("hr_scale", 2.0)
+            payload["hr_upscaler"] = params.get("hr_upscaler", "Latent")
+            payload["hr_second_pass_steps"] = params.get("hr_second_pass_steps", 0)
+        else:
+            payload["enable_hr"] = False # Explicitly set to false if not enabled
+
         return payload
 
     def build_img2img_payload(self, init_image_b64: str, prompt: str, group_id: str, negative_prompt: str = "") -> Dict[str, Any]:
@@ -46,6 +63,16 @@ class GenerationManager:
         params = self.config.get("img2img_params", {})
         payload = self._build_base_payload(params, prompt, negative_prompt, group_id)
         payload["init_images"] = [init_image_b64]
+        
+        # Add common parameters
+        payload["seed"] = params.get("seed", -1)
+        payload["restore_faces"] = params.get("restore_faces", False)
+        payload["tiling"] = params.get("tiling", False)
+        
+        # Add img2img specific parameters
+        payload["image_cfg_scale"] = params.get("image_cfg_scale", 0)
+        payload["include_init_images"] = params.get("include_init_images", False)
+
         return payload
 
     async def generate_txt2img(self, prompt: str, group_id: str, negative_prompt: str = "") -> List[str]:
@@ -66,12 +93,13 @@ class GenerationManager:
             return images_b64
 
         upscaled_images = []
-        upscale_params = self.config.get("upscale_params", {})
+        # Ensure upscale_params is a dictionary, even if missing from config
+        upscale_params = self.config.get("upscale_params", {}) 
         for image_b64 in images_b64:
             payload = {
                 "image": image_b64,
-                "upscaling_resize": upscale_params.get("upscale_factor", 2.0),
-                "upscaler_1": upscale_params.get("upscaler", "Latent"),
+                "upscaling_resize": upscale_params.get("upscale_factor", self.DEFAULT_UPSCALE_FACTOR),
+                "upscaler_1": upscale_params.get("upscaler", self.DEFAULT_UPSCALER),
                 "resize_mode": 0,
             }
             response = await self.client.extra_single_image(payload)

@@ -22,10 +22,12 @@ class LLMHelper:
         if not provider:
             return base_prompt
 
-        full_prompt = f"{prefix}\n{guidelines}\n描述：{base_prompt}".strip()
+        # More robust way to combine prompt parts, avoiding extra newlines if parts are empty
+        prompt_parts = [p for p in [prefix, guidelines, f"描述：{base_prompt}"] if p and p.strip()]
+        full_prompt = "\n".join(prompt_parts).strip()
         
         try:
-            response = await provider.text_chat(full_prompt, session_id=None)
+            response = await provider.text_chat(full_prompt)
             if response and response.completion_text:
                 return response.completion_text.strip()
         except Exception as e:
@@ -57,8 +59,7 @@ class LLMHelper:
         try:
             response = await provider.image_chat(
                 prompt=full_prompt,
-                image=image_b64,
-                session_id=None
+                image=image_b64
             )
             if response and response.completion_text:
                 return response.completion_text.strip()

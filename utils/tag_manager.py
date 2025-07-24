@@ -79,3 +79,23 @@ class TagManager:
                 for key, value in new_tags.items():
                     self.tags.setdefault(key, value)
             self._save()
+
+    def rename_tag(self, old_key: str, new_key: str) -> bool:
+        """Renames an existing tag. Returns True if successful, False otherwise."""
+        with self.lock:
+            if old_key in self.tags:
+                value = self.tags.pop(old_key)
+                self.tags[new_key] = value
+                self._save()
+                return True
+            return False
+
+    def fuzzy_search(self, keyword: str) -> Dict[str, str]:
+        """Performs a fuzzy search for tags by keyword."""
+        found_tags = {}
+        search_lower = keyword.lower()
+        with self.lock:
+            for key, value in self.tags.items():
+                if search_lower in key.lower() or search_lower in value.lower():
+                    found_tags[key] = value
+        return found_tags
