@@ -3,7 +3,7 @@
 """
 Plugin Name: SDGen_wzken
 Author: wzken
-Version: 2.3.0
+Version: 2.3.3
 Description: A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.
 """
 
@@ -13,7 +13,7 @@ from typing import List, Dict, Any, Callable, Tuple, Coroutine
 
 import astrbot.api.message_components as Comp
 from astrbot.api import AstrBotConfig, logger
-from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event import AstrMessageEvent, filter, MessageEventResult
 from astrbot.api.star import Context, Star, register
 
 from .core.client import SDAPIClient
@@ -22,7 +22,7 @@ from .utils.tag_manager import TagManager
 from .utils.llm_helper import LLMHelper
 from .static import messages
 
-@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.3.0")
+@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.3.3")
 class SDGeneratorWzken(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -43,15 +43,15 @@ class SDGeneratorWzken(Star):
         self.llm_helper = LLMHelper(self.context)
 
     # --- LLM Tool Definition ---
-    @filter.llm_tool("generate_image")
-    async def generate_image(self, event: AstrMessageEvent, prompt: str):
+    @filter.llm_tool("create_sd_image")
+    async def generate_image(self, event: AstrMessageEvent, prompt: str) -> MessageEventResult:
         """
-        Generates an image using the Stable Diffusion model based on a descriptive English prompt.
-        This tool should be used when the user explicitly asks to 'draw', 'create', 'generate', or 'make' an image, picture, or painting of something. The LLM should provide a detailed, high-quality English prompt describing the desired image.
-        It should not be mistakenly used for image searching.
+        使用Stable Diffusion模型，根据详细的英文提示词来创作一幅全新的、不存在的图像。
+        当用户明确表示想要“画”、“绘制”、“创作”、“生成”或“制作”一幅关于某个主题的图片、画作或视觉艺术作品时，应优先使用此工具。
+        这个工具用于艺术创作，而不是搜索或查找现有图片。
 
         Args:
-            prompt (str): A detailed English description of the image to be generated.
+            prompt(string): 对所需图像的详细、富有想象力的英文描述。例如：“一只穿着宇航服的猫在月球上弹吉他，数字艺术风格”。
         """
         if not await self._permission_check(event):
             yield event.plain_result("Sorry, I don't have permission to draw in this chat.")
