@@ -3,7 +3,7 @@
 """
 Plugin Name: SDGen_wzken
 Author: wzken
-Version: 2.2.0
+Version: 2.3.0
 Description: A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.
 """
 
@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Callable, Tuple, Coroutine
 import astrbot.api.message_components as Comp
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.star import Context, Star, register, llm_tool
+from astrbot.api.star import Context, Star, register
 
 from .core.client import SDAPIClient
 from .core.generation import GenerationManager
@@ -22,7 +22,7 @@ from .utils.tag_manager import TagManager
 from .utils.llm_helper import LLMHelper
 from .static import messages
 
-@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.2.0")
+@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.3.0")
 class SDGeneratorWzken(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -43,7 +43,7 @@ class SDGeneratorWzken(Star):
         self.llm_helper = LLMHelper(self.context)
 
     # --- LLM Tool Definition ---
-    @llm_tool("generate_image")
+    @filter.llm_tool("generate_image")
     async def generate_image(self, event: AstrMessageEvent, prompt: str):
         """
         Generates an image using the Stable Diffusion model based on a descriptive English prompt.
