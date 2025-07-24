@@ -102,7 +102,9 @@ class SDGeneratorWzken(Star):
         value_type: type, validation: Callable[[Any], bool] = None, 
         api_check: Coroutine = None, unit: str = ""
     ):
-        value_str = event.message_str.strip()
+        # Extract the value part from the command message
+        command_parts = event.message_str.strip().split(maxsplit=1)
+        value_str = command_parts[1] if len(command_parts) > 1 else ""
         
         key_path = config_paths[0]
         current_val_dict = self.config
@@ -432,6 +434,12 @@ class SDGeneratorWzken(Star):
                 current_mode = self.config.get("upscaling_mode", "post")
                 new_mode = "hires" if current_mode == "post" else "post"
                 self.config["upscaling_mode"] = new_mode
+                
+                # Sync enable_hr with the new mode
+                is_upscale_enabled = self.config.get("enable_upscale", False)
+                if "default_params" in self.config:
+                    self.config["default_params"]["enable_hr"] = is_upscale_enabled and new_mode == "hires"
+
                 await inner_event.send(inner_event.plain_result(f"✅ 模式已切换。\n\n{get_menu_text()}"))
                 controller.keep(timeout=60, reset_timeout=True)
 

@@ -67,7 +67,12 @@ class SDUtils:
                 "hr_upscaler": params.get("hr_upscaler", "Latent"),
                 "hr_second_pass_steps": params.get("hr_second_pass_steps", 0),
                 "denoising_strength": params.get("hr_denoising_strength", 0.7),
+                "hr_sampler_name": params.get("sampler"),
+                "hr_scheduler": params.get("scheduler"),
             })
+            # Remove base sampler/scheduler to avoid conflicts
+            payload.pop("sampler_name", None)
+            payload.pop("scheduler", None)
 
         return payload
 
