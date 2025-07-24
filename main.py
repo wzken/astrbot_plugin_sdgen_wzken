@@ -3,7 +3,7 @@
 """
 Plugin Name: SDGen_wzken
 Author: wzken
-Version: 2.1.0
+Version: 2.2.0
 Description: A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.
 """
 
@@ -22,7 +22,7 @@ from .utils.tag_manager import TagManager
 from .utils.llm_helper import LLMHelper
 from .static import messages
 
-@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.1.0")
+@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.2.0")
 class SDGeneratorWzken(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -41,6 +41,32 @@ class SDGeneratorWzken(Star):
         tags_file.parent.mkdir(exist_ok=True)
         self.tag_manager = TagManager(str(tags_file))
         self.llm_helper = LLMHelper(self.context)
+        
+        # Register the image generation function as a tool for the LLM
+        if hasattr(self.context, 'register_tool'):
+            self.context.register_tool(self.llm_tool_generate_image)
+            logger.info("Successfully registered 'llm_tool_generate_image' as an LLM tool.")
+
+    # --- LLM Tool Definition ---
+    async def llm_tool_generate_image(self, event: AstrMessageEvent, prompt: str):
+        """
+        Generates an image using the Stable Diffusion model based on a descriptive English prompt.
+
+        This tool should be used when the user explicitly asks to 'draw', 'create', 'generate', or 'make' an image, picture, or painting of something. The LLM should provide a detailed, high-quality English prompt describing the desired image.
+
+        Args:
+            event (AstrMessageEvent): The message event context provided by the framework.
+            prompt (str): A detailed English description of the image to be generated.
+        """
+        if not await self._permission_check(event):
+            yield event.plain_result("Sorry, I don't have permission to draw in this chat.")
+            return
+
+        await event.send(event.plain_result(messages.MSG_GENERATING))
+        # The prompt from the LLM is assumed to be good, but we still run it through the tag manager for aliases.
+        final_prompt, _ = self.tag_manager.replace(prompt)
+        async for result in self._generate_and_send(event, final_prompt):
+            yield result
 
     # --- Generic Setting Handlers (Refactored) ---
 
