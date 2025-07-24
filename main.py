@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Callable, Tuple, Coroutine
 import astrbot.api.message_components as Comp
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star, register, llm_tool
 
 from .core.client import SDAPIClient
 from .core.generation import GenerationManager
@@ -41,21 +41,16 @@ class SDGeneratorWzken(Star):
         tags_file.parent.mkdir(exist_ok=True)
         self.tag_manager = TagManager(str(tags_file))
         self.llm_helper = LLMHelper(self.context)
-        
-        # Register the image generation function as a tool for the LLM
-        if hasattr(self.context, 'register_tool'):
-            self.context.register_tool(self.llm_tool_generate_image)
-            logger.info("Successfully registered 'llm_tool_generate_image' as an LLM tool.")
 
     # --- LLM Tool Definition ---
-    async def llm_tool_generate_image(self, event: AstrMessageEvent, prompt: str):
+    @llm_tool("generate_image")
+    async def generate_image(self, event: AstrMessageEvent, prompt: str):
         """
         Generates an image using the Stable Diffusion model based on a descriptive English prompt.
-
         This tool should be used when the user explicitly asks to 'draw', 'create', 'generate', or 'make' an image, picture, or painting of something. The LLM should provide a detailed, high-quality English prompt describing the desired image.
+        It should not be mistakenly used for image searching.
 
         Args:
-            event (AstrMessageEvent): The message event context provided by the framework.
             prompt (str): A detailed English description of the image to be generated.
         """
         if not await self._permission_check(event):
