@@ -29,6 +29,13 @@
     "default": false,
     "hint": "是否在生成图片后自动进行放大处理。"
   },
+  "upscaling_mode": {
+    "type": "string",
+    "description": "图像放大模式",
+    "default": "post",
+    "hint": "设置图像放大的模式：'post' (后期处理放大) 或 'hires' (高分辨率修复)。",
+    "options": ["post", "hires"]
+  },
   "enable_show_positive_prompt": {
     "type": "bool",
     "description": "显示正面提示词",
@@ -125,7 +132,8 @@
       "enable_hr": { "type": "bool", "title": "启用高分辨率修复", "default": false, "hint": "是否启用高分辨率修复（Hires. fix）。" },
       "hr_scale": { "type": "float", "title": "高分修复倍数", "default": 2.0, "hint": "高分辨率修复的放大倍数。" },
       "hr_upscaler": { "type": "string", "title": "高分修复放大器", "default": "Latent", "hint": "高分辨率修复使用的放大算法。" },
-      "hr_second_pass_steps": { "type": "int", "title": "高分修复二阶段步数", "default": 0, "hint": "高分辨率修复第二阶段的生成步数，0为自动。" }
+      "hr_second_pass_steps": { "type": "int", "title": "高分修复二阶段步数", "default": 0, "hint": "高分辨率修复第二阶段的生成步数，0为自动。" },
+      "hr_denoising_strength": { "type": "float", "title": "高分修复重绘幅度", "default": 0.7, "hint": "高分辨率修复的重绘幅度 (Denoising Strength)。" }
     },
     "default": {
       "width": 512,
@@ -142,7 +150,8 @@
       "enable_hr": false,
       "hr_scale": 2.0,
       "hr_upscaler": "Latent",
-      "hr_second_pass_steps": 0
+      "hr_second_pass_steps": 0,
+      "hr_denoising_strength": 0.7
     }
   },
   "img2img_params": {

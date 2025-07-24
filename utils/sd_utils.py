@@ -43,8 +43,8 @@ class SDUtils:
     async def generate_payload(self, prompt: str, negative_prompt: str) -> dict:
         """构建生成参数"""
         params = self.config["default_params"]
-
-        return {
+        
+        payload = {
             "prompt": prompt,
             "negative_prompt": negative_prompt,
             "width": params["width"],
@@ -55,7 +55,21 @@ class SDUtils:
             "cfg_scale": params["cfg_scale"],
             "batch_size": params["batch_size"],
             "n_iter": params["n_iter"],
+            "seed": params.get("seed", -1),
+            "restore_faces": params.get("restore_faces", False),
+            "tiling": params.get("tiling", False),
+            "enable_hr": params.get("enable_hr", False),
         }
+
+        if payload["enable_hr"]:
+            payload.update({
+                "hr_scale": params.get("hr_scale", 2.0),
+                "hr_upscaler": params.get("hr_upscaler", "Latent"),
+                "hr_second_pass_steps": params.get("hr_second_pass_steps", 0),
+                "denoising_strength": params.get("hr_denoising_strength", 0.7),
+            })
+
+        return payload
 
     async def generate_img2img_payload(self, image_data: str, prompt: str, original_width: int, original_height: int, negative_prompt: str) -> dict:
         """构建图生图生成参数"""
@@ -133,6 +147,8 @@ class SDUtils:
 
         base_model = self.config.get("base_model").strip() or messages.MSG_NOT_SET
 
+        hr_denoising_strength = params.get("hr_denoising_strength") or messages.MSG_NOT_SET
+
         return (
             f"{messages.MSG_GLOBAL_POSITIVE_PROMPT}: {positive_prompt_global}\n"
             f"{messages.MSG_GLOBAL_NEGATIVE_PROMPT}: {negative_prompt_global}\n"
@@ -143,7 +159,8 @@ class SDUtils:
             f"{messages.MSG_SCHEDULER}: {scheduler}\n"
             f"{messages.MSG_CFG_SCALE}: {cfg_scale}\n"
             f"{messages.MSG_BATCH_SIZE}: {batch_size}\n"
-            f"{messages.MSG_N_ITER}: {n_iter}"
+            f"{messages.MSG_N_ITER}: {n_iter}\n"
+            f"高分修复重绘幅度: {hr_denoising_strength}"
         )
 
     def get_upscale_params_str(self) -> str:

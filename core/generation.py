@@ -34,8 +34,9 @@ class GenerationManager:
         return response.get("images", [])
 
     async def process_and_upscale_images(self, images_b64: List[str]) -> List[str]:
-        """Upscales a list of base64 encoded images if upscaling is enabled."""
-        if not self.config.get("enable_upscale", False):
+        """Upscales a list of base64 encoded images if post-processing upscale is enabled."""
+        # Only perform upscaling if the main toggle is on AND the mode is 'post'
+        if not self.config.get("enable_upscale", False) or self.config.get("upscaling_mode") != "post":
             return images_b64
 
         upscaled_images = []

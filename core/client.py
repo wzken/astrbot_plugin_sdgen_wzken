@@ -61,6 +61,9 @@ class SDAPIClient:
     async def get_schedulers(self) -> List[Dict]:
         return await self.get("/sdapi/v1/schedulers")
 
+    async def get_latent_upscalers(self) -> List[Dict]:
+        return await self.get("/sdapi/v1/latent-upscale-modes")
+
     async def txt2img(self, payload: Dict) -> Dict:
         return await self.post("/sdapi/v1/txt2img", payload)
 

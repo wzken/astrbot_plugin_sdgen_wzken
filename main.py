@@ -34,9 +34,7 @@ class SDGeneratorWzken(Star):
         {"name": "详细输出模式", "keys": [["enable_show_positive_prompt"]]},
         {"name": "私聊发送结果", "keys": [["enable_private_message"]]},
         {"name": "合并转发消息", "keys": [["enable_forward_reply"]]},
-        {"name": "图像增强 (超分)", "keys": [["enable_upscale"]]},
         {"name": "LLM生成提示词", "keys": [["enable_llm_prompt_generation"]]},
-        {"name": "高分辨率修复", "keys": [["default_params", "enable_hr"]]},
         {"name": "面部修复", "keys": [["default_params", "restore_faces"], ["img2img_params", "restore_faces"]]},
         {"name": "无缝平铺", "keys": [["default_params", "tiling"], ["img2img_params", "tiling"]]},
         {"name": "图生图包含原图", "keys": [["img2img_params", "include_init_images"]]},
@@ -192,6 +190,10 @@ class SDGeneratorWzken(Star):
     async def handle_hr_steps(self, event: AstrMessageEvent):
         '''设置或查询高分辨率修复的第二阶段步数'''
         async for result in self._handle_value_setting(event, [["default_params", "hr_second_pass_steps"]], "高分修复二阶段步数", int, validation=lambda v: v >= 0): yield result
+    @sd_group.command("hr_denoise")
+    async def handle_hr_denoising_strength(self, event: AstrMessageEvent):
+        '''设置或查询高分辨率修复的重绘幅度'''
+        async for result in self._handle_value_setting(event, [["default_params", "hr_denoising_strength"]], "高分修复重绘幅度", float, validation=lambda v: 0.0 <= v <= 1.0): yield result
     @sd_group.command("seed")
     async def handle_seed(self, event: AstrMessageEvent):
         '''设置或查询生成种子，-1为随机'''
@@ -267,7 +269,7 @@ class SDGeneratorWzken(Star):
     # --- Interactive/Session Commands ---
     async def _interactive_selector(
         self, event: AstrMessageEvent, resource_type: str, 
-        fetch_coro: Coroutine, config_paths: List[List[str]], name_key: str = 'name'
+        fetch_coro: Coroutine, config_path: List[str], name_key: str = 'name'
     ):
         """A generic interactive selector for resources like models, samplers, etc."""
         try:
@@ -276,17 +278,14 @@ class SDGeneratorWzken(Star):
                 await event.send(event.plain_result(f"无法获取{resource_type}列表。"))
                 return
 
-            item_names = [item[name_key] for item in items]
+            item_names = [item.get(name_key, "N/A") for item in items]
             
-            current_values = []
-            for path in config_paths:
-                current_val_dict = self.config
-                for key in path[:-1]:
-                    current_val_dict = current_val_dict.get(key, {})
-                current_values.append(current_val_dict.get(path[-1], 'N/A'))
+            current_val_dict = self.config
+            for key in config_path[:-1]:
+                current_val_dict = current_val_dict.get(key, {})
+            current_val = current_val_dict.get(config_path[-1], 'N/A')
 
-            current_value_str = " / ".join([f"`{v}`" for v in current_values])
-            prompt_lines = [f"当前{resource_type}: {current_value_str}\n", f"请选择新的{resource_type} (回复数字):"]
+            prompt_lines = [f"当前{resource_type}: `{current_val}`\n", f"请选择新的{resource_type} (回复数字):"]
             prompt_lines.extend([f"{i+1}. {name}" for i, name in enumerate(item_names)])
             prompt_lines.append("\n(输入 \"退出\" 来取消)")
             
@@ -308,12 +307,11 @@ class SDGeneratorWzken(Star):
                     
                     chosen_item = item_names[choice_idx]
                     
-                    for path in config_paths:
-                        target_dict = self.config
-                        for key in path[:-1]:
-                            if key not in target_dict: target_dict[key] = {}
-                            target_dict = target_dict[key]
-                        target_dict[path[-1]] = chosen_item
+                    target_dict = self.config
+                    for key in config_path[:-1]:
+                        if key not in target_dict: target_dict[key] = {}
+                        target_dict = target_dict[key]
+                    target_dict[config_path[-1]] = chosen_item
 
                     await inner_event.send(inner_event.plain_result(f"✅ {resource_type}已设置为: `{chosen_item}`"))
                     controller.stop()
@@ -335,12 +333,13 @@ class SDGeneratorWzken(Star):
         except Exception as e:
             logger.error(f"Interactive selector for {resource_type} error: {e}", exc_info=True)
             await event.send(event.plain_result(f"发生错误: {e}"))
+        finally:
+            event.stop_event()
 
     @sd_group.command("model")
     async def handle_model_selection(self, event: AstrMessageEvent):
         '''交互式选择并设置基础模型'''
-        await self._interactive_selector(event, "模型", self.api_client.get_sd_models, [["base_model"]], name_key='title')
-        event.stop_event()
+        await self._interactive_selector(event, "模型", self.api_client.get_sd_models, ["base_model"], name_key='title')
 
     @sd_group.command("sampler")
     async def handle_sampler_selection(self, event: AstrMessageEvent):
@@ -352,10 +351,10 @@ class SDGeneratorWzken(Star):
             choice = type_event.message_str.strip()
             if choice == '1':
                 controller.stop()
-                await self._interactive_selector(type_event, "文生图采样器", self.api_client.get_samplers, [["default_params", "sampler"]])
+                await self._interactive_selector(type_event, "文生图采样器", self.api_client.get_samplers, ["default_params", "sampler"])
             elif choice == '2':
                 controller.stop()
-                await self._interactive_selector(type_event, "图生图采样器", self.api_client.get_samplers, [["img2img_params", "sampler"]])
+                await self._interactive_selector(type_event, "图生图采样器", self.api_client.get_samplers, ["img2img_params", "sampler"])
             elif choice.lower() in ["退出", "exit", "quit", "cancel"]:
                 await type_event.send(type_event.plain_result("操作已取消。"))
                 controller.stop()
@@ -383,10 +382,10 @@ class SDGeneratorWzken(Star):
             choice = type_event.message_str.strip()
             if choice == '1':
                 controller.stop()
-                await self._interactive_selector(type_event, "文生图调度器", self.api_client.get_schedulers, [["default_params", "scheduler"]])
+                await self._interactive_selector(type_event, "文生图调度器", self.api_client.get_schedulers, ["default_params", "scheduler"])
             elif choice == '2':
                 controller.stop()
-                await self._interactive_selector(type_event, "图生图调度器", self.api_client.get_schedulers, [["img2img_params", "scheduler"]])
+                await self._interactive_selector(type_event, "图生图调度器", self.api_client.get_schedulers, ["img2img_params", "scheduler"])
             elif choice.lower() in ["退出", "exit", "quit", "cancel"]:
                 await type_event.send(type_event.plain_result("操作已取消。"))
                 controller.stop()
@@ -405,11 +404,72 @@ class SDGeneratorWzken(Star):
             event.stop_event()
 
     @sd_group.command("upscaler")
-    async def handle_upscaler_selection(self, event: AstrMessageEvent):
-        '''交互式选择并设置上采样（放大）算法'''
-        config_paths = [["upscale_params", "upscaler"], ["default_params", "hr_upscaler"]]
-        await self._interactive_selector(event, "上采样算法", self.api_client.get_upscalers, config_paths)
-        event.stop_event()
+    async def handle_upscaler_menu(self, event: AstrMessageEvent):
+        '''管理图像放大设置'''
+        
+        def get_menu_text():
+            mode = self.config.get("upscaling_mode", "post")
+            enabled = self.config.get("enable_upscale", False)
+            
+            mode_text = "后期处理放大" if mode == "post" else "高分辨率修复"
+            enabled_text = "✅ 开" if enabled else "❌ 关"
+            
+            return (
+                f"当前放大模式: {mode_text} (总开关: {enabled_text})\n\n"
+                "1. 切换放大模式\n"
+                "2. 选择放大算法\n"
+                "3. 开启/关闭图像放大\n\n"
+                "(回复数字或'退出')"
+            )
+
+        await event.send(event.plain_result(get_menu_text()))
+
+        @session_waiter(timeout=60)
+        async def menu_waiter(controller: SessionController, inner_event: AstrMessageEvent):
+            choice = inner_event.message_str.strip()
+
+            if choice == "1": # 切换模式
+                current_mode = self.config.get("upscaling_mode", "post")
+                new_mode = "hires" if current_mode == "post" else "post"
+                self.config["upscaling_mode"] = new_mode
+                await inner_event.send(inner_event.plain_result(f"✅ 模式已切换。\n\n{get_menu_text()}"))
+                controller.keep(timeout=60, reset_timeout=True)
+
+            elif choice == "2": # 选择算法
+                controller.stop() # 停止当前会话以启动新的选择器会话
+                mode = self.config.get("upscaling_mode", "post")
+                if mode == "post":
+                    await self._interactive_selector(inner_event, "后期处理放大器", self.api_client.get_upscalers, ["upscale_params", "upscaler"])
+                else: # hires
+                    await self._interactive_selector(inner_event, "高分辨率修复放大器", self.api_client.get_latent_upscalers, ["default_params", "hr_upscaler"])
+
+            elif choice == "3": # 开/关
+                new_status = not self.config.get("enable_upscale", False)
+                self.config["enable_upscale"] = new_status
+                # Hires.fix has its own enable toggle
+                if "default_params" in self.config:
+                    self.config["default_params"]["enable_hr"] = new_status if self.config.get("upscaling_mode") == "hires" else False
+                
+                await inner_event.send(inner_event.plain_result(f"✅ 总开关已设置。\n\n{get_menu_text()}"))
+                controller.keep(timeout=60, reset_timeout=True)
+
+            elif choice.lower() in ["退出", "exit", "quit", "cancel"]:
+                await inner_event.send(inner_event.plain_result("操作已取消。"))
+                controller.stop()
+            
+            else:
+                await inner_event.send(inner_event.plain_result("❌ 无效的选择，请输入列表中的数字或'退出'。"))
+                controller.keep(timeout=60, reset_timeout=True)
+
+        try:
+            await menu_waiter(event)
+        except TimeoutError:
+            await event.send(event.plain_result("⌛ 操作超时，已取消。"))
+        except Exception as e:
+            logger.error(f"Upscaler menu error: {e}", exc_info=True)
+            await event.send(event.plain_result(f"发生错误: {e}"))
+        finally:
+            event.stop_event()
 
     @sd_group.command("设置")
     async def handle_settings(self, event: AstrMessageEvent):
@@ -595,6 +655,14 @@ class SDGeneratorWzken(Star):
         yield event.plain_result(f"找到的标签：\n{tag_list_str}")
 
     # --- Core Generation Logic ---
+    def _extract_prompt_from_message(self, message: str, aliases: List[str]) -> str:
+        """Removes a command alias from the start of a message string."""
+        message_lower = message.lower()
+        for alias in aliases:
+            if message_lower.startswith(alias.lower()):
+                return message[len(alias):].strip()
+        return message # Return original if no alias is found at the start
+
     async def _permission_check(self, event: AstrMessageEvent) -> bool:
         group_id = event.get_group_id()
         if group_id in self.config.get("blacklist_groups", []):
@@ -661,10 +729,14 @@ class SDGeneratorWzken(Star):
     async def handle_native(self, event: AstrMessageEvent):
         '''使用本地替换后的提示词直接进行文生图，不经过LLM'''
         if not await self._permission_check(event): return
-        prompt_text = event.message_str.strip()
+
+        aliases = ["原生画", "native"]
+        prompt_text = self._extract_prompt_from_message(event.message_str.strip(), aliases)
+
         if not prompt_text:
             yield event.plain_result(messages.MSG_NO_PROMPT_PROVIDED)
             return
+            
         await event.send(event.plain_result(messages.MSG_GENERATING))
         
         replaced_prompt, _ = self.tag_manager.replace(prompt_text)
@@ -687,7 +759,7 @@ class SDGeneratorWzken(Star):
         
         await event.send(event.plain_result(messages.MSG_IMG2IMG_GENERATING))
         
-        prompt_text = image_info.get("prompt", "")
+        prompt_text = self._extract_prompt_from_message(image_info.get("prompt", ""), ["i2i"])
         replaced_prompt, _ = self.tag_manager.replace(prompt_text)
         
         if self.config.get("enable_llm_prompt_generation", True):
@@ -736,7 +808,9 @@ class SDGeneratorWzken(Star):
             return
         
         await event.send(event.plain_result(messages.MSG_GENERATING))
-        prompt_text, _ = self.tag_manager.replace(image_info.get("prompt", ""))
+        
+        prompt_text = self._extract_prompt_from_message(image_info.get("prompt", ""), ["inspire"])
+        prompt_text, _ = self.tag_manager.replace(prompt_text)
         
         final_prompt = await self.llm_helper.generate_prompt_from_image(
             image_b64=image_info["b64"], user_instruction=prompt_text,
@@ -770,7 +844,7 @@ class SDGeneratorWzken(Star):
             "- `/sd model`: 交互式选择模型。",
             "- `/sd sampler`: 交互式选择采样器。",
             "- `/sd scheduler`: 交互式选择调度器。",
-            "- `/sd upscaler`: 交互式选择放大器。",
+            "- `/sd upscaler`: 管理图像放大设置。",
             "- `/sd list_loras`: 列出LoRA模型。",
             "- `/sd list_embeddings`: 列出Embedding。",
             "- `/sd tag`: 管理本地关键词。",
@@ -794,6 +868,7 @@ class SDGeneratorWzken(Star):
             "- `/sd timeout [秒数]`: 设置会话超时。",
             "- `/sd hr_scale [倍数]`: 设置高分修复放大倍数。",
             "- `/sd hr_steps [步数]`: 设置高分修复二阶段步数。",
+            "- `/sd hr_denoise [幅度]`: 设置高分修复重绘幅度 (0-1)。",
         ]
 
         all_commands = sorted(core + management + params)
