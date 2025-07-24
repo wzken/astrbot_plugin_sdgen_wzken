@@ -3,7 +3,7 @@
 """
 Plugin Name: SDGen_wzken
 Author: wzken
-Version: 2.3.6
+Version: 2.4.5
 Description: A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.
 """
 
@@ -13,7 +13,7 @@ from typing import List, Dict, Any, Callable, Tuple, Coroutine
 
 import astrbot.api.message_components as Comp
 from astrbot.api import AstrBotConfig, logger
-from astrbot.api.event import AstrMessageEvent, filter, MessageEventResult
+from astrbot.api.event import AstrMessageEvent, filter as astr_filter, MessageEventResult
 from astrbot.api.star import Context, Star, register
 
 from .core.client import SDAPIClient
@@ -22,7 +22,7 @@ from .utils.tag_manager import TagManager
 from .utils.llm_helper import LLMHelper
 from .static import messages
 
-@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.3.6")
+@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.4.5")
 class SDGeneratorWzken(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -34,32 +34,45 @@ class SDGeneratorWzken(Star):
 
     def _initialize_services(self):
         """Initializes all core services and managers."""
+        # Revert data path to be inside the plugin directory for bundled updates
         plugin_dir = Path(__file__).parent.resolve()
+        tags_dir = plugin_dir / "data"
+        tags_dir.mkdir(exist_ok=True)
+
         self.api_client = SDAPIClient(self.config)
         self.generator = GenerationManager(self.config, self.api_client)
-        tags_file = plugin_dir / "data" / "tags.json"
-        tags_file.parent.mkdir(exist_ok=True)
+        
+        tags_file = tags_dir / "tags.json"
         self.tag_manager = TagManager(str(tags_file))
+        
         self.llm_helper = LLMHelper(self.context)
 
     # --- LLM Tool Definition ---
-    @filter.llm_tool("create_sd_image")
+    @astr_filter.llm_tool("create_sd_image")
     async def generate_image(self, event: AstrMessageEvent, prompt: str) -> MessageEventResult:
         """
         使用Stable Diffusion模型，根据用户的描述创作一幅全新的图像。
-        当用户明确表示想要“画”、“绘制”、“创作”或“生成”图片时，应使用此工具。
-        后续步骤会对用户的简单描述进行优化和丰富，因此即使描述很简单也应调用此工具。
+        这个工具的核心任务是将用户的自然语言描述（无论简单或复杂）转换成一个专业、详细、适合AI绘画的英文提示词，并用它来生成图像。
+        当用户明确表示想要“画”、“绘制”、“创作”或“生成”图片时，应优先使用此工具。
 
         Args:
-            prompt(string): 用户对所需图像的描述。这可以是一个简单的概念（如“一个女孩”），也可以是一个更详细的场景。如果用户提供了图片，可以结合图片内容来识别并丰富描述，以生成更准确的提示词。
+            prompt(string): 用户对所需图像的初步描述。例如：“一个女孩”或“蔚蓝档案的小春在沙滩上”。这个描述将作为生成最终专业提示词的基础。
         """
         if not await self._permission_check(event):
             yield event.plain_result("Sorry, I don't have permission to draw in this chat.")
             return
 
         await event.send(event.plain_result(messages.MSG_GENERATING))
-        # The prompt from the LLM is assumed to be good, but we still run it through the tag manager for aliases.
-        final_prompt, _ = self.tag_manager.replace(prompt)
+        
+        # --- New Flow: 1. Replace tags, 2. Optimize with LLM ---
+        replaced_prompt, _ = self.tag_manager.replace(prompt)
+        
+        final_prompt = await self.llm_helper.generate_text_prompt(
+            base_prompt=replaced_prompt,
+            guidelines=self.config.get("prompt_guidelines", ""),
+            prefix=self.config.get("llm_prompt_prefix", "")
+        )
+        
         async for result in self._generate_and_send(event, final_prompt):
             yield result
 
@@ -134,7 +147,7 @@ class SDGeneratorWzken(Star):
             yield event.plain_result(f"设置{name}失败。")
 
     # --- Command Definitions ---
-    @filter.command_group("sd")
+    @astr_filter.command_group("sd")
     def sd_group(self):
         pass
 
@@ -542,10 +555,25 @@ class SDGeneratorWzken(Star):
             group_id = event.get_group_id()
             user_id = event.get_sender_id()
 
-            if is_inspire or image_b64 is None:
-                generated_images = await self.generator.generate_txt2img(final_prompt, group_id)
+            # --- Explicit Prompt Combination Logic ---
+            whitelist_groups = self.config.get("whitelist_groups", [])
+            if group_id in whitelist_groups:
+                positive_prefix = self.config.get("positive_prompt_whitelist", "masterpiece, best quality")
+                negative_prefix = self.config.get("negative_prompt_whitelist", "")
             else:
-                generated_images = await self.generator.generate_img2img(image_b64, final_prompt, group_id)
+                positive_prefix = self.config.get("positive_prompt_global", "")
+                negative_prefix = self.config.get("negative_prompt_global", "(worst quality, low quality:1.4)")
+
+            # Combine prompts
+            full_positive_prompt = ", ".join(filter(None, [positive_prefix, final_prompt]))
+            # Correctly handle negative prompt combination for future use
+            user_negative_prompt = "" # Placeholder for potential future feature
+            full_negative_prompt = ", ".join(filter(None, [negative_prefix, user_negative_prompt]))
+
+            if is_inspire or image_b64 is None:
+                generated_images = await self.generator.generate_txt2img(full_positive_prompt, full_negative_prompt)
+            else:
+                generated_images = await self.generator.generate_img2img(image_b64, full_positive_prompt, full_negative_prompt)
 
             if not generated_images:
                 yield event.plain_result(messages.MSG_API_ERROR)
@@ -556,7 +584,8 @@ class SDGeneratorWzken(Star):
             
             # Add prompt to the message chain if enabled
             if self.config.get("enable_show_positive_prompt", True):
-                image_components.insert(0, Comp.Plain(f"{messages.MSG_PROMPT_DISPLAY}: {final_prompt}"))
+                # Display the full prompt that was actually sent to the API
+                image_components.insert(0, Comp.Plain(f"{messages.MSG_PROMPT_DISPLAY}: {full_positive_prompt}"))
 
             # --- New Sending Logic ---
             send_private = self.config.get("enable_private_message", False)
@@ -581,20 +610,21 @@ class SDGeneratorWzken(Star):
             logger.error(f"An error occurred during image generation/sending: {e}", exc_info=True)
             yield event.plain_result(messages.MSG_UNKNOWN_ERROR)
 
-    @filter.command("原生画", alias={"native"})
+    @astr_filter.command("原生画", alias={"native"})
     async def handle_native(self, event: AstrMessageEvent):
-        """Handles direct txt2img generation."""
+        """Handles direct txt2img generation without any processing."""
         if not await self._permission_check(event): return
         prompt_text = event.message_str.strip()
         if not prompt_text:
             yield event.plain_result(messages.MSG_NO_PROMPT_PROVIDED)
             return
         await event.send(event.plain_result(messages.MSG_GENERATING))
-        final_prompt, _ = self.tag_manager.replace(prompt_text)
+        # Pure channel: directly use the user's input without any modification
+        final_prompt = prompt_text
         async for result in self._generate_and_send(event, final_prompt):
             yield result
 
-    @filter.command("i2i")
+    @astr_filter.command("i2i")
     async def handle_i2i(self, event: AstrMessageEvent):
         """Handles image-to-image generation."""
         if not await self._permission_check(event): return
@@ -607,15 +637,19 @@ class SDGeneratorWzken(Star):
             yield event.plain_result(messages.MSG_NO_IMAGE_PROVIDED)
             return
         await event.send(event.plain_result(messages.MSG_IMG2IMG_GENERATING))
-        prompt_text, _ = self.tag_manager.replace(prompt_text)
+        
+        # --- New Flow: 1. Replace tags, 2. Optimize with LLM ---
+        replaced_prompt, _ = self.tag_manager.replace(prompt_text)
+        
         if self.config.get("enable_llm_prompt_generation", True):
             final_prompt = await self.llm_helper.generate_text_prompt(
-                base_prompt=prompt_text,
+                base_prompt=replaced_prompt,
                 guidelines=self.config.get("prompt_guidelines", ""),
                 prefix=self.config.get("llm_prompt_prefix", "")
             )
         else:
-            final_prompt = prompt_text
+            final_prompt = replaced_prompt
+            
         async for result in self._generate_and_send(event, final_prompt, image_b64=image_b64):
             yield result
 
@@ -630,7 +664,7 @@ class SDGeneratorWzken(Star):
                     prompt_text += comp.text + " "
         return image_b64, prompt_text.strip()
 
-    @filter.command("inspire")
+    @astr_filter.command("inspire")
     async def handle_inspire(self, event: AstrMessageEvent):
         """Handles vision-based txt2img generation."""
         if not await self._permission_check(event): return
@@ -665,6 +699,7 @@ class SDGeneratorWzken(Star):
         help_message = "SD绘图插件可用指令：\n\n"
         commands = [
             # Manually list commands for clarity and order
+            "- `/原生画 <提示词>`: 直接使用提示词进行绘图，不经过任何优化。",
             "- `/sd check`: 检查Stable Diffusion WebUI服务是否可用。",
             "- `/sd conf`: 显示当前插件配置。",
             "- `/sd help`: 显示此帮助信息。",
