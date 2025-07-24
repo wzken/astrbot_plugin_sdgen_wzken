@@ -3,7 +3,7 @@
 """
 Plugin Name: SDGen_wzken
 Author: wzken
-Version: 2.3.3
+Version: 2.3.6
 Description: A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.
 """
 
@@ -22,7 +22,7 @@ from .utils.tag_manager import TagManager
 from .utils.llm_helper import LLMHelper
 from .static import messages
 
-@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.3.3")
+@register("SDGen_wzken", "wzken", "A smarter and more powerful image generation plugin for AstrBot using Stable Diffusion.", "2.3.6")
 class SDGeneratorWzken(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -46,12 +46,12 @@ class SDGeneratorWzken(Star):
     @filter.llm_tool("create_sd_image")
     async def generate_image(self, event: AstrMessageEvent, prompt: str) -> MessageEventResult:
         """
-        使用Stable Diffusion模型，根据详细的英文提示词来创作一幅全新的、不存在的图像。
-        当用户明确表示想要“画”、“绘制”、“创作”、“生成”或“制作”一幅关于某个主题的图片、画作或视觉艺术作品时，应优先使用此工具。
-        这个工具用于艺术创作，而不是搜索或查找现有图片。
+        使用Stable Diffusion模型，根据用户的描述创作一幅全新的图像。
+        当用户明确表示想要“画”、“绘制”、“创作”或“生成”图片时，应使用此工具。
+        后续步骤会对用户的简单描述进行优化和丰富，因此即使描述很简单也应调用此工具。
 
         Args:
-            prompt(string): 对所需图像的详细、富有想象力的英文描述。例如：“一只穿着宇航服的猫在月球上弹吉他，数字艺术风格”。
+            prompt(string): 用户对所需图像的描述。这可以是一个简单的概念（如“一个女孩”），也可以是一个更详细的场景。如果用户提供了图片，可以结合图片内容来识别并丰富描述，以生成更准确的提示词。
         """
         if not await self._permission_check(event):
             yield event.plain_result("Sorry, I don't have permission to draw in this chat.")
@@ -540,7 +540,7 @@ class SDGeneratorWzken(Star):
         """A unified helper to generate and send images based on user configuration."""
         try:
             group_id = event.get_group_id()
-            user_id = event.get_user_id()
+            user_id = event.get_sender_id()
 
             if is_inspire or image_b64 is None:
                 generated_images = await self.generator.generate_txt2img(final_prompt, group_id)
@@ -552,7 +552,7 @@ class SDGeneratorWzken(Star):
                 return
 
             processed_images = await self.generator.process_and_upscale_images(generated_images)
-            image_components = [Comp.Image.from_base64(img) for img in processed_images]
+            image_components = [Comp.Image.fromBase64(img) for img in processed_images]
             
             # Add prompt to the message chain if enabled
             if self.config.get("enable_show_positive_prompt", True):
