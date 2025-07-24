@@ -124,10 +124,16 @@ class SDGeneratorWzken(Star):
         async for result in self._handle_toggle(event, [["enable_show_positive_prompt"]], "详细输出模式"):
             yield result
 
-    @sd_group.command("forward")
-    async def handle_forward_toggle(self, event: AstrMessageEvent):
-        """Toggles forward message mode."""
-        async for result in self._handle_toggle(event, [["enable_forward_message"]], "新消息发送模式"):
+    @sd_group.command("private")
+    async def handle_private_toggle(self, event: AstrMessageEvent):
+        """Toggles private message mode."""
+        async for result in self._handle_toggle(event, [["enable_private_message"]], "私聊发送模式"):
+            yield result
+
+    @sd_group.command("forward_reply")
+    async def handle_forward_reply_toggle(self, event: AstrMessageEvent):
+        """Toggles forward reply mode."""
+        async for result in self._handle_toggle(event, [["enable_forward_reply"]], "合并转发回复模式"):
             yield result
 
     @sd_group.command("upscale")
@@ -510,10 +516,11 @@ class SDGeneratorWzken(Star):
         return True
 
     async def _generate_and_send(self, event: AstrMessageEvent, final_prompt: str, image_b64: str = None, is_inspire: bool = False):
-        """A unified helper to generate and send images."""
+        """A unified helper to generate and send images based on user configuration."""
         try:
             group_id = event.get_group_id()
-            
+            user_id = event.get_user_id()
+
             if is_inspire or image_b64 is None:
                 generated_images = await self.generator.generate_txt2img(final_prompt, group_id)
             else:
@@ -526,12 +533,27 @@ class SDGeneratorWzken(Star):
             processed_images = await self.generator.process_and_upscale_images(generated_images)
             image_components = [Comp.Image.from_base64(img) for img in processed_images]
             
+            # Add prompt to the message chain if enabled
             if self.config.get("enable_show_positive_prompt", True):
-                yield event.plain_result(f"{messages.MSG_PROMPT_DISPLAY}: {final_prompt}")
-            
-            if self.config.get("enable_forward_message", False):
-                yield event.send_result(image_components)
+                image_components.insert(0, Comp.Plain(f"{messages.MSG_PROMPT_DISPLAY}: {final_prompt}"))
+
+            # --- New Sending Logic ---
+            send_private = self.config.get("enable_private_message", False)
+            use_forward_reply = self.config.get("enable_forward_reply", False)
+
+            if send_private:
+                # Send as a private message to the user
+                yield event.send_result(image_components, user_id=user_id)
+            elif use_forward_reply:
+                # Send as a forwardable node in the original channel
+                node = Comp.Node(
+                    uin=event.message_obj.self_id,
+                    name="SD 生成结果",
+                    content=image_components
+                )
+                yield event.chain_result([node])
             else:
+                # Default: send as a direct reply in the original channel
                 yield event.chain_result(image_components)
 
         except Exception as e:
@@ -627,7 +649,8 @@ class SDGeneratorWzken(Star):
             "- `/sd help`: 显示此帮助信息。",
             # Toggles
             "- `/sd verbose`: 切换详细输出模式。",
-            "- `/sd forward`: 切换新消息发送模式。",
+            "- `/sd private`: 切换私聊发送模式。",
+            "- `/sd forward_reply`: 切换合并转发回复模式。",
             "- `/sd upscale`: 切换超分辨率放大模式。",
             "- `/sd llm_gen`: 切换LLM生成提示词功能。",
             "- `/sd hr_toggle`: 切换高分辨率修复模式。",

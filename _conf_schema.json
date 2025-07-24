@@ -35,11 +35,17 @@
     "default": true,
     "hint": "生成图片后，是否在消息中显示最终使用的正面提示词。"
   },
-  "enable_forward_message": {
+  "enable_private_message": {
     "type": "bool",
-    "description": "以新消息发送图片",
+    "description": "私聊发送结果",
     "default": false,
-    "hint": "True: 以新消息发送图片（不回复）。False: 以回复原消息的方式发送图片。"
+    "hint": "开启后，生成的图片将通过私聊发送给指令发起者。"
+  },
+  "enable_forward_reply": {
+    "type": "bool",
+    "description": "合并转发回复",
+    "default": false,
+    "hint": "开启后，在原频道回复时将使用合并转发的形式。此开关仅在“私聊发送结果”关闭时生效。"
   },
   "positive_prompt_global": {
     "type": "string",
