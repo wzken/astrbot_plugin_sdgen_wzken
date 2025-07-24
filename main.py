@@ -602,23 +602,27 @@ class SDGeneratorWzken(Star):
             return False
         return True
 
-    async def _generate_and_send(self, event: AstrMessageEvent, final_prompt: str, image_info: dict = None, is_inspire: bool = False):
+    async def _generate_and_send(self, event: AstrMessageEvent, final_prompt: str, image_info: dict = None, is_inspire: bool = False, is_native: bool = False):
         try:
             group_id = event.get_group_id()
             user_id = event.get_sender_id()
             is_i2i = image_info is not None
 
-            if is_i2i:
-                positive_prefix = self.config.get("positive_prompt_i2i", "")
+            if is_native:
+                full_positive_prompt = final_prompt
             else:
-                positive_prefix = self.config.get("positive_prompt_global", "")
-            
-            whitelist_groups = self.config.get("whitelist_groups", [])
-            if group_id in whitelist_groups:
-                positive_prefix = self.config.get("positive_prompt_whitelist", "masterpiece, best quality")
-            
+                if is_i2i:
+                    positive_prefix = self.config.get("positive_prompt_i2i", "")
+                else:
+                    positive_prefix = self.config.get("positive_prompt_global", "")
+                
+                whitelist_groups = self.config.get("whitelist_groups", [])
+                if group_id in whitelist_groups:
+                    positive_prefix = self.config.get("positive_prompt_whitelist", "masterpiece, best quality")
+                
+                full_positive_prompt = ", ".join(filter(None, [positive_prefix, final_prompt]))
+
             negative_prefix = self.config.get("negative_prompt_global", "(worst quality, low quality:1.4)")
-            full_positive_prompt = ", ".join(filter(None, [positive_prefix, final_prompt]))
             full_negative_prompt = negative_prefix
 
             if is_inspire:
@@ -662,8 +666,10 @@ class SDGeneratorWzken(Star):
             yield event.plain_result(messages.MSG_NO_PROMPT_PROVIDED)
             return
         await event.send(event.plain_result(messages.MSG_GENERATING))
-        final_prompt = prompt_text
-        async for result in self._generate_and_send(event, final_prompt):
+        
+        replaced_prompt, _ = self.tag_manager.replace(prompt_text)
+        
+        async for result in self._generate_and_send(event, replaced_prompt, is_native=True):
             yield result
 
     @astr_filter.command("i2i")
