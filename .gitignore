@@ -120,3 +120,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# AstrBot Plugin Specific
+data/*_config.json

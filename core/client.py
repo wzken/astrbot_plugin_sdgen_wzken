@@ -86,11 +86,18 @@ class SDAPIClient:
             
     async def download_image_as_base64(self, url: str) -> str:
         """Downloads an image from a URL and returns it as a base64 string."""
+        image_bytes = await self.download_image_as_bytes(url)
+        if image_bytes:
+            return base64.b64encode(image_bytes).decode("utf-8")
+        raise ConnectionError(f"Failed to download image from {url}.")
+
+    async def download_image_as_bytes(self, url: str) -> Optional[bytes]:
+        """Downloads an image from a URL and returns its raw bytes."""
         session = await self._get_session()
         try:
             async with session.get(url) as response:
                 response.raise_for_status()
-                image_bytes = await response.read()
-                return base64.b64encode(image_bytes).decode("utf-8")
+                return await response.read()
         except aiohttp.ClientError as e:
-            raise ConnectionError(f"Failed to download image from {url}.") from e
+            logger.error(f"Failed to download image bytes from {url}: {e}")
+            return None
