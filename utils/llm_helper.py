@@ -1,70 +1,46 @@
-# astrbot_plugin_sdgen_v2/utils/llm_helper.py
+# astrbot_plugin_sdgen_wzken/utils/llm_helper.py
 
-from typing import Optional
-
-from astrbot.api.all import Context, logger
+import json
+from astrbot.api.star import Context
+from ..static import messages
 
 class LLMHelper:
-    INSPIRE_PROMPT_TEMPLATE = (
-        "{prefix}\n{guidelines}\n"
-        "Based on the image provided and the following instruction: '{user_instruction}', "
-        "generate a detailed and creative prompt for Stable Diffusion."
-    )
-
     def __init__(self, context: Context):
         self.context = context
 
-    async def generate_text_prompt(self, base_prompt: str, guidelines: str, prefix: str) -> str:
+    async def generate_text_prompt(self, base_prompt: str, guidelines: str = "", prefix: str = "") -> str:
         """
-        Generates a refined text prompt using a text-only LLM.
+        Uses the LLM to generate a detailed English prompt for image generation.
         """
+        fallback_prompt = f"{prefix}, {base_prompt}" if prefix else base_prompt
         provider = self.context.get_using_provider()
+
         if not provider:
-            return base_prompt
+            return fallback_prompt
 
-        # More robust way to combine prompt parts, avoiding extra newlines if parts are empty
-        prompt_parts = [p for p in [prefix, guidelines, f"描述：{base_prompt}"] if p and p.strip()]
-        full_prompt = "\n".join(prompt_parts).strip()
-        
-        try:
-            response = await provider.text_chat(full_prompt)
-            if response and response.completion_text:
-                return response.completion_text.strip()
-        except Exception as e:
-            logger.error(f"Error during text_chat with LLM provider: {e}")
-            return base_prompt
-        
-        return base_prompt
-
-    async def generate_prompt_from_image(
-        self, 
-        image_b64: str, 
-        user_instruction: str, 
-        guidelines: str, 
-        prefix: str
-    ) -> Optional[str]:
-        """
-        Generates a prompt from an image and a text instruction using a multi-modal LLM.
-        """
-        provider = self.context.get_using_provider()
-        if not provider or not hasattr(provider, 'image_chat'):
-            return None
-
-        full_prompt = self.INSPIRE_PROMPT_TEMPLATE.format(
-            prefix=prefix,
+        # Construct a prompt for the LLM to generate a better prompt
+        generation_instruction = messages.SYSTEM_PROMPT_SD_PROMPT_GENERATION.format(
             guidelines=guidelines,
-            user_instruction=user_instruction
+            prefix=prefix,
+            base_prompt=base_prompt
         )
 
         try:
-            response = await provider.image_chat(
-                prompt=full_prompt,
-                image=image_b64
+            llm_response = await provider.text_chat(
+                prompt=generation_instruction,
+                contexts=[],
             )
-            if response and response.completion_text:
-                return response.completion_text.strip()
-        except Exception as e:
-            logger.error(f"Error during image_chat with LLM provider: {e}")
-            return None
-        
-        return None
+
+            if llm_response and llm_response.completion_text:
+                # Clean up the response, remove potential markdown code blocks
+                generated_prompt = llm_response.completion_text.strip()
+                if generated_prompt.startswith("```") and generated_prompt.endswith("```"):
+                    generated_prompt = generated_prompt.strip("`").strip()
+                return generated_prompt
+            else:
+                # Fallback if LLM fails
+                return fallback_prompt
+
+        except Exception:
+            # Fallback in case of any API error
+            return fallback_prompt

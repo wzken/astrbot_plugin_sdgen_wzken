@@ -17,13 +17,13 @@ class GenerationManager:
 
     async def generate_txt2img(self, prompt: str, negative_prompt: str) -> List[str]:
         """Generates an image from text and returns a list of base64 encoded images."""
-        payload = await self.sd_utils.generate_payload(prompt, negative_prompt)
+        payload = self.sd_utils.prepare_txt2img_payload(prompt, negative_prompt)
         response = await self.client.txt2img(payload)
         return response.get("images", [])
 
     async def generate_img2img(self, image_info: Dict[str, Any], prompt: str, negative_prompt: str) -> List[str]:
         """Generates an image from an image and text, returns a list of base64 encoded images."""
-        payload = await self.sd_utils.generate_img2img_payload(
+        payload = self.sd_utils.prepare_img2img_payload(
             image_data=image_info["b64"],
             prompt=prompt,
             original_width=image_info["width"],
@@ -40,7 +40,7 @@ class GenerationManager:
             return images_b64
 
         upscaled_images = []
-        upscale_params = self.config.get("upscale_params", {}) 
+        upscale_params = self.config.get("upscale_params", {})
         for image_b64 in images_b64:
             payload = {
                 "image": image_b64,

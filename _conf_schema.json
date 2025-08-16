@@ -102,17 +102,23 @@
     "default": "",
     "hint": "（可选）指定一个默认加载的基础模型。"
   },
+  "interrogator_model": {
+    "type": "string",
+    "description": "反推模型名称",
+    "default": "wd-eva02-large-tagger-v3",
+    "hint": "用于图像转文字（反推）的模型。"
+  },
+  "interrogator_threshold": {
+    "type": "float",
+    "description": "反推阈值",
+    "default": 0.35,
+    "hint": "反推时使用的置信度阈值，只有高于此值的标签才会被采纳。"
+  },
   "llm_prompt_prefix": {
     "type": "string",
     "description": "LLM系统指令",
     "default": "You are a professional Stable Diffusion prompt engineer. Your task is to expand and optimize the user's simple description into a high-quality, detailed, and professional English prompt suitable for Stable Diffusion syntax. Please output in the form of comma-separated keywords.",
     "hint": "给LLM设定的“角色”或“系统指令”，指导其行为。"
-  },
-  "prompt_guidelines": {
-    "type": "string",
-    "description": "LLM生成规则",
-    "default": "1、请根据以下描述生成用于 Stable Diffusion WebUI 的D anbooru 英文提示词。请返回一条逗号分隔的 `prompt` 英文字符串，适用于 Stable Diffusion web UI，仅补充细节和画质提升相关词汇，不要添加动作、场景、风格或姿势的prompt，不要生成解释性文本，不需要 “prompt:” 等内容，不需要双引号包裹，如果用词并不符合 Stable Diffusion WebUI 的常见词，请将其转换为常用词。2、如果用户有提供角色名，要以“角色名(作品名称)”的方式输入到绘图模型。例：“aris_(blue_archive)”，如果用户没提及人物名称或眼睛描述，则不添加。3、直接返回 `prompt`，不要加任何额外说明，不要加质量词条。描述：",
-    "hint": "给LLM设定的具体“规则”或“限制”，进一步约束其输出。"
   },
   "default_params": {
     "type": "object",
@@ -121,7 +127,7 @@
       "width": { "type": "int", "title": "宽度" },
       "height": { "type": "int", "title": "高度" },
       "steps": { "type": "int", "title": "步数" },
-      "sampler": { "type": "string", "title": "采样器" },
+      "sampler_name": { "type": "string", "title": "采样器" },
       "scheduler": { "type": "string", "title": "调度器" },
       "cfg_scale": { "type": "float", "title": "CFG Scale" },
       "batch_size": { "type": "int", "title": "批次大小" },
@@ -139,7 +145,7 @@
       "width": 512,
       "height": 512,
       "steps": 20,
-      "sampler": "Euler a",
+      "sampler_name": "Euler a",
       "scheduler": "Karras",
       "cfg_scale": 7.0,
       "batch_size": 1,
@@ -160,7 +166,7 @@
     "items": {
       "denoising_strength": { "type": "float", "title": "重绘幅度" },
       "steps": { "type": "int", "title": "步数" },
-      "sampler": { "type": "string", "title": "采样器" },
+      "sampler_name": { "type": "string", "title": "采样器" },
       "scheduler": { "type": "string", "title": "调度器" },
       "cfg_scale": { "type": "float", "title": "CFG Scale" },
       "batch_size": { "type": "int", "title": "批次大小" },
@@ -174,7 +180,7 @@
     "default": {
       "denoising_strength": 0.75,
       "steps": 20,
-      "sampler": "Euler a",
+      "sampler_name": "Euler a",
       "scheduler": "Karras",
       "cfg_scale": 7.0,
       "batch_size": 1,

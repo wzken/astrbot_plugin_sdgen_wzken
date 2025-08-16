@@ -32,12 +32,15 @@ class SDAPIClient:
         try:
             async with session.request(method, url, **kwargs) as response:
                 response.raise_for_status()
+                # Handle cases where response might be empty
+                if response.content_length == 0:
+                    return None
                 return await response.json()
         except aiohttp.ClientError as e:
             logger.error(f"API request to {url} failed: {e}")
             raise ConnectionError(f"Failed to connect to Stable Diffusion API at {url}.") from e
 
-    async def post(self, endpoint: str, payload: Dict) -> Dict:
+    async def post(self, endpoint: str, payload: Dict) -> Optional[Dict]:
         return await self._request("post", endpoint, json=payload)
 
     async def get(self, endpoint: str) -> Any:
@@ -64,6 +67,15 @@ class SDAPIClient:
     async def get_latent_upscalers(self) -> List[Dict]:
         return await self.get("/sdapi/v1/latent-upscale-modes")
 
+    async def get_interrogators(self) -> List[str]:
+        """获取所有可用的反推模型"""
+        response = await self.get("/tagger/v1/interrogators")
+        return response.get("models", [])
+
+    async def interrogate(self, payload: Dict) -> Dict:
+        """执行图像反推"""
+        return await self.post("/tagger/v1/interrogate", payload)
+
     async def txt2img(self, payload: Dict) -> Dict:
         return await self.post("/sdapi/v1/txt2img", payload)
 
@@ -74,10 +86,18 @@ class SDAPIClient:
         """For upscaling or other extra features."""
         return await self.post("/sdapi/v1/extra-single-image", payload)
 
-    async def set_model(self, model_name: str) -> None:
-        """Set the active Stable Diffusion model."""
-        payload = {"sd_model_checkpoint": model_name}
-        await self.post("/sdapi/v1/options", payload)
+    async def set_sd_model(self, model_title: str) -> tuple[bool, str]:
+        """Set the active Stable Diffusion model via the options API."""
+        try:
+            payload = {"sd_model_checkpoint": model_title}
+            await self.post("/sdapi/v1/options", payload)
+            return True, f"模型已成功切换至 {model_title}"
+        except ConnectionError as e:
+            logger.error(f"Failed to set SD model: {e}")
+            return False, "无法连接到 WebUI API 来切换模型。"
+        except Exception as e:
+            logger.error(f"An unexpected error occurred while setting SD model: {e}")
+            return False, f"切换模型时发生未知错误: {e}"
 
     async def check_availability(self) -> bool:
         """Check if the WebUI API is available."""
@@ -103,4 +123,4 @@ class SDAPIClient:
                 return await response.read()
         except aiohttp.ClientError as e:
             logger.error(f"Failed to download image bytes from {url}: {e}")
-            return None
+            raise ConnectionError(f"Failed to download image from {url}.") from e

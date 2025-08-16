@@ -4,6 +4,8 @@ import math
 from PIL import Image
 from astrbot.api.all import logger, AstrBotConfig
 from astrbot.api.event import AstrMessageEvent
+import astrbot.api.message_components as Comp
+from typing import Tuple, List, Any
 from ..static import messages
 
 class SDUtils:
@@ -11,7 +13,11 @@ class SDUtils:
         self.config = config
         self.context = context
 
-    def _get_closest_resolution(self, original_width: int, original_height: int) -> tuple[int, int]:
+    def validate_resolution(self, width: int, height: int) -> bool:
+        """Validates if the given width and height are valid SD resolutions."""
+        return width > 0 and height > 0 and width % 64 == 0 and height % 64 == 0
+
+    def _get_closest_resolution(self, original_width: int, original_height: int) -> Tuple[int, int]:
         """
         根据原始图片尺寸，保持横纵比，并调整到不超过 1920x1920，且为 64 的倍数，且尽可能大。
         """
@@ -40,21 +46,45 @@ class SDUtils:
 
         return target_width, target_height
 
-    async def generate_payload(self, prompt: str, negative_prompt: str) -> dict:
+    def is_positive_int(self, value: Any) -> bool:
+        """Validates if the value is a positive integer."""
+        return isinstance(value, int) and value > 0
+
+    def is_non_negative_int(self, value: Any) -> bool:
+        """Validates if the value is a non-negative integer."""
+        return isinstance(value, int) and value >= 0
+
+    def is_valid_denoising_strength(self, value: Any) -> bool:
+        """Validates if the value is a valid denoising strength (0.0 to 1.0)."""
+        return isinstance(value, (int, float)) and 0.0 <= value <= 1.0
+
+    def is_valid_hr_denoising_strength(self, value: Any) -> bool:
+        """Validates if the value is a valid HR denoising strength (0.0 to 1.0)."""
+        return isinstance(value, (int, float)) and 0.0 <= value <= 1.0
+
+    def is_valid_image_cfg_scale(self, value: Any) -> bool:
+        """Validates if the value is a valid image CFG scale (>= 0)."""
+        return isinstance(value, (int, float)) and value >= 0
+
+    def is_valid_seed(self, value: Any) -> bool:
+        """Validates if the value is a valid seed."""
+        return isinstance(value, int)
+
+    def prepare_txt2img_payload(self, prompt: str, negative_prompt: str) -> dict:
         """构建生成参数"""
-        params = self.config["default_params"]
+        params = self.config.get("default_params", {})
         
         payload = {
             "prompt": prompt,
             "negative_prompt": negative_prompt,
-            "width": params["width"],
-            "height": params["height"],
-            "steps": params["steps"],
-            "sampler_name": params["sampler"],
-            "scheduler": params["scheduler"],
-            "cfg_scale": params["cfg_scale"],
-            "batch_size": params["batch_size"],
-            "n_iter": params["n_iter"],
+            "width": params.get("width", 1024),
+            "height": params.get("height", 1024),
+            "steps": params.get("steps", 20),
+            "sampler_name": params.get("sampler_name", "DPM++ 2M Karras"),
+            "scheduler": params.get("scheduler", "Karras"),
+            "cfg_scale": params.get("cfg_scale", 7),
+            "batch_size": params.get("batch_size", 1),
+            "n_iter": params.get("n_iter", 1),
             "seed": params.get("seed", -1),
             "restore_faces": params.get("restore_faces", False),
             "tiling": params.get("tiling", False),
@@ -62,28 +92,27 @@ class SDUtils:
         }
 
         if payload["enable_hr"]:
-            payload.update({
+            hr_params = {
                 "hr_scale": params.get("hr_scale", 2.0),
                 "hr_upscaler": params.get("hr_upscaler", "Latent"),
                 "hr_second_pass_steps": params.get("hr_second_pass_steps", 0),
                 "denoising_strength": params.get("hr_denoising_strength", 0.7),
-                "hr_sampler_name": params.get("sampler"),
+                "hr_sampler_name": params.get("sampler_name"),
                 "hr_scheduler": params.get("scheduler"),
-            })
-            # Remove base sampler/scheduler to avoid conflicts
-            payload.pop("sampler_name", None)
-            payload.pop("scheduler", None)
+            }
+            payload.update(hr_params)
 
         return payload
 
-    async def generate_img2img_payload(self, image_data: str, prompt: str, original_width: int, original_height: int, negative_prompt: str) -> dict:
+    def prepare_img2img_payload(self, image_data: str, prompt: str, original_width: int, original_height: int, negative_prompt: str) -> dict:
         """构建图生图生成参数"""
-        params = self.config["img2img_params"]
-        
-        target_width, target_height = self._get_closest_resolution(original_width, original_height)
+        params = self.config.get("img2img_params", {})
 
-        sampler_name = params.get("sampler", "Euler a")
-        scheduler_name = params.get("scheduler", "DPM++ 2M Karras")
+        # Use configured resolution if available, otherwise calculate it
+        target_width = params.get("width")
+        target_height = params.get("height")
+        if not target_width or not target_height:
+            target_width, target_height = self._get_closest_resolution(original_width, original_height)
 
         return {
             "init_images": [image_data],
@@ -91,50 +120,57 @@ class SDUtils:
             "negative_prompt": negative_prompt,
             "width": target_width,
             "height": target_height,
-            "steps": params["steps"],
-            "sampler_name": sampler_name,
-            "scheduler": scheduler_name,
-            "cfg_scale": params["cfg_scale"],
-            "denoising_strength": params["denoising_strength"],
-            "batch_size": params["batch_size"],
-            "n_iter": params["n_iter"],
+            "steps": params.get("steps", 20),
+            "sampler_name": params.get("sampler_name", "DPM++ 2M Karras"),
+            "scheduler": params.get("scheduler", "Karras"),
+            "cfg_scale": params.get("cfg_scale", 7),
+            "denoising_strength": params.get("denoising_strength", 0.75),
+            "batch_size": params.get("batch_size", 1),
+            "n_iter": params.get("n_iter", 1),
+            "seed": params.get("seed", -1),
+            "restore_faces": params.get("restore_faces", False),
+            "tiling": params.get("tiling", False),
+            "image_cfg_scale": params.get("image_cfg_scale"),
+            "include_init_images": params.get("include_init_images", False),
         }
 
-    def trans_prompt(self, prompt: str) -> str:
-        """
-        替换提示词中的所有下划线为空格，并自动加上敏感词括号说明
-        """
-        prompt = prompt.replace("_", " ")
-        prompt_with_notice = f"{prompt}{self.config.get('llm_prompt_suffix', '')}"
-        return prompt_with_notice
-
-    async def generate_prompt_with_llm(self, event: AstrMessageEvent, prompt: str) -> str:
-        provider = self.context.get_using_provider()
-        if provider:
-            llm_prompt_prefix = self.config.get("LLM_PROMPT_PREFIX", messages.MSG_DEFAULT_LLM_PROMPT_PREFIX)
+    def get_full_prompts(self, base_prompt: str, group_id: str, is_i2i: bool, is_native: bool) -> Tuple[str, str]:
+        """Constructs the full positive and negative prompts based on configuration."""
+        if is_native:
+            full_positive_prompt = base_prompt
+        else:
+            positive_prefix = self.config.get("positive_prompt_i2i" if is_i2i else "positive_prompt_global", "")
             
-            cleaned_user_prompt = prompt
-            
-            group_id = event.get_group_id()
             whitelist_groups = self.config.get("whitelist_groups", [])
-            
-            final_prompt_description = cleaned_user_prompt
-            prompt_guidelines = self.config.get("prompt_guidelines", "")
-
             if group_id and group_id in whitelist_groups:
-                final_prompt_description = f"{cleaned_user_prompt}{messages.MSG_LLM_PROMPT_NOTICE}"
-                prompt_guidelines = ""
+                positive_prefix = self.config.get("positive_prompt_whitelist", "masterpiece, best quality")
             
-            full_prompt = f"{llm_prompt_prefix}\n{prompt_guidelines}\n描述：{final_prompt_description}".strip()
+            full_positive_prompt = ", ".join(filter(None, [positive_prefix, base_prompt]))
 
-            response = await provider.text_chat(full_prompt, session_id=None)
-            if response.completion_text:
-                generated_prompt = re.sub(r"<think>[\s\S]*</think>", "", response.completion_text).strip()
-                logger.info(f"{messages.MSG_LLM_RETURNED_TAG}: {generated_prompt}")
-                return generated_prompt
+        negative_prefix = self.config.get("negative_prompt_global", "(worst quality, low quality:1.4)")
+        full_negative_prompt = negative_prefix
+        
+        return full_positive_prompt, full_negative_prompt
 
-        return ""
+    async def send_image_results(self, event: AstrMessageEvent, images_b64: List[str], full_positive_prompt: str):
+        """Sends the generated images and prompt to the user based on configuration."""
+        image_components = [Comp.Image.fromBase64(img) for img in images_b64]
+        
+        if self.config.get("enable_show_positive_prompt", True):
+            image_components.insert(0, Comp.Plain(f"{messages.MSG_PROMPT_DISPLAY}: {full_positive_prompt}"))
 
+        send_private = self.config.get("enable_private_message", False)
+        use_forward_reply = self.config.get("enable_forward_reply", False)
+        user_id = event.get_sender_id()
+
+        if send_private:
+            await event.send(event.send_result(image_components, user_id=user_id))
+        elif use_forward_reply:
+            node = Comp.Node(uin=event.message_obj.self_id, name="SD 生成结果", content=[Comp.Plain(text="SD 生成结果"), *image_components]) # Added Plain component for node title
+            await event.send(event.chain_result([node]))
+        else:
+            await event.send(event.chain_result(image_components))
+ 
     def get_generation_params_str(self) -> str:
         """获取当前图像生成的参数"""
         positive_prompt_global = self.config.get("positive_prompt_global", "")
@@ -144,7 +180,7 @@ class SDUtils:
         width = params.get("width") or messages.MSG_NOT_SET
         height = params.get("height") or messages.MSG_NOT_SET
         steps = params.get("steps") or messages.MSG_NOT_SET
-        sampler = params.get("sampler") or messages.MSG_NOT_SET
+        sampler = params.get("sampler_name") or messages.MSG_NOT_SET
         scheduler = params.get("scheduler") or messages.MSG_NOT_SET
         cfg_scale = params.get("cfg_scale") or messages.MSG_NOT_SET
         batch_size = params.get("batch_size") or messages.MSG_NOT_SET
@@ -164,31 +200,21 @@ class SDUtils:
             f"{messages.MSG_SCHEDULER}: {scheduler}\n"
             f"{messages.MSG_CFG_SCALE}: {cfg_scale}\n"
             f"{messages.MSG_BATCH_SIZE}: {batch_size}\n"
-            f"{messages.MSG_N_ITER}: {n_iter}\n"
-            f"高分修复重绘幅度: {hr_denoising_strength}"
-        )
-
-    def get_upscale_params_str(self) -> str:
-        """获取当前图像增强（超分辨率放大）参数"""
-        params = self.config["default_params"]
-        upscale_factor = params.get("upscale_factor", "2")
-        upscaler = params.get("upscaler", messages.MSG_NOT_SET)
-
-        return (
-            f"{messages.MSG_UPSCALE_FACTOR}: {upscale_factor}\n"
-            f"{messages.MSG_UPSCALER_ALGORITHM}: {upscaler}"
+            f"{messages.MSG_ITERATIONS}: {n_iter}\n"
+            f"{messages.MSG_HIRES_DENOISING}: {hr_denoising_strength}"
         )
 
     def get_img2img_params_str(self) -> str:
         """获取当前图生图的参数"""
-        img2img_params = self.config.get("img2img_params", {})
-        denoising_strength = img2img_params.get("denoising_strength") or messages.MSG_NOT_SET
-        steps = img2img_params.get("steps") or messages.MSG_NOT_SET
-        sampler = img2img_params.get("sampler") or messages.MSG_NOT_SET
-        scheduler = img2img_params.get("scheduler") or messages.MSG_NOT_SET
-        cfg_scale = img2img_params.get("cfg_scale") or messages.MSG_NOT_SET
-        batch_size = img2img_params.get("batch_size") or messages.MSG_NOT_SET
-        n_iter = img2img_params.get("n_iter") or messages.MSG_NOT_SET
+        params = self.config.get("img2img_params", {})
+        denoising_strength = params.get("denoising_strength") or messages.MSG_NOT_SET
+        steps = params.get("steps") or messages.MSG_NOT_SET
+        sampler = params.get("sampler_name") or messages.MSG_NOT_SET
+        scheduler = params.get("scheduler") or messages.MSG_NOT_SET
+        cfg_scale = params.get("cfg_scale") or messages.MSG_NOT_SET
+        batch_size = params.get("batch_size") or messages.MSG_NOT_SET
+        n_iter = params.get("n_iter") or messages.MSG_NOT_SET
+        image_cfg_scale = params.get("image_cfg_scale") or messages.MSG_NOT_SET
 
         return (
             f"{messages.MSG_DENOISING_STRENGTH}: {denoising_strength}\n"
@@ -197,6 +223,17 @@ class SDUtils:
             f"{messages.MSG_SCHEDULER}: {scheduler}\n"
             f"{messages.MSG_CFG_SCALE}: {cfg_scale}\n"
             f"{messages.MSG_BATCH_SIZE}: {batch_size}\n"
-            f"{messages.MSG_N_ITER}: {n_iter}\n"
-            f"{messages.MSG_IMG2IMG_RESOLUTION_AUTO_SET.format(width='自动', height='自动')}"
+            f"{messages.MSG_ITERATIONS}: {n_iter}\n"
+            f"{messages.MSG_IMAGE_CFG_SCALE}: {image_cfg_scale}"
+        )
+
+    def get_upscale_params_str(self) -> str:
+        """获取当前放大处理的参数"""
+        params = self.config.get("upscale_params", {})
+        upscaler = params.get("upscaler") or messages.MSG_NOT_SET
+        factor = params.get("upscale_factor") or messages.MSG_NOT_SET
+        
+        return (
+            f"{messages.MSG_UPSCALER}: {upscaler}\n"
+            f"{messages.MSG_UPSCALE_FACTOR}: {factor}"
         )
